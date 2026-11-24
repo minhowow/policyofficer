@@ -1,0 +1,35 @@
+# yaml-language-server: $schema=../../../schemas/policy-test-0.1.json
+apiVersion: policyofficer/test-0.1
+rule: kr.hiring-act.4-3/applicant-physical-fields
+cases:
+  - file: hiring-4-3/physical-violating.tsx
+    note: 모든 지원자에게 키·체중을 받는다. 제1호의 전형적인 모양이다
+    expect: needs-review
+    ai: {ai-physical-job-required: no}
+
+  - file: hiring-4-3/physical-job-required.tsx
+    note: 체력 기준이 직무 요건인 공고에서만 조건부로 받는다. 판정자가 그 줄을 인용해야 풀린다
+    expect: compliant
+    ai:
+      ai-physical-job-required:
+        answer: yes
+        cite: '{jobRequiresPhysicalTest && <input name="height" type="number" placeholder="키(cm)" />}'
+
+  - file: hiring-4-3/physical-gate-name-only.tsx
+    note: >
+      이름만 직무 요건처럼 보이는 약한 근거(job-requirement-gate)다. 그 플래그는 운전면허 칸을 가릴 뿐
+      신체 조건 칸과 상관이 없다. 약한 대안은 혼자 경고를 풀지 못한다
+    expect: needs-review
+    ai: {ai-physical-job-required: no}
+
+  - file: hiring-4-3/physical-product-size.tsx
+    note: 함정 — height·weight 가 상품 치수다. 지원서 맥락이 아니라 적용되지 않는다
+    expect: not-applicable
+
+  # 알려진 오경보 — 맥락 조건(application-form)이 주석의 '지원서' 에 걸린다. 지원서가 아닌데
+  # 검토 필요가 된다. 정규식은 주석과 코드를 가리지 않는다. 경고를 올리는 쪽이라 그대로 두고
+  # 픽스처로 적어 둔다. 판정자가 적용 질문으로 가린다.
+  - file: hiring-4-3/physical-comment-mentions-form.tsx
+    note: 건강검진 결과 화면. 지원서라는 낱말이 주석에만 있고 입력 폼이 아니다
+    expect: needs-review
+    ai: {ai-physical-job-required: no}

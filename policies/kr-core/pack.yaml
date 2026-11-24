@@ -1881,3 +1881,164 @@ policies:
               message: 국외 AI API 로 보내는 내용에 개인정보가 들어가는 것으로 보입니다.
               ask-developer: 이 정보를 국외로 보내는 근거는 무엇인가요? 처리방침에 이전받는 자·국가·항목 등을 공개했는지(제28조의8 제1항 제3호 가목), 국외 이전에 대한 별도 동의를 받는지(같은 항 제1호), 수탁자를 공개했는지(제26조 제2항) 알려 주세요.
               remediation: 보내기 전에 개인정보를 가리거나 빼고, 그럴 수 없다면 처리방침의 국외 이전·처리위탁 항목에 이 AI 사업자를 적으세요.
+
+  # ───────────────────────────────────────────────────────────────────────────
+  - id: kr.hiring-act.4-3
+    category: hiring-fields
+    title: 지원서에 직무와 무관한 개인정보 요구 금지
+    duties: [hiring-4-3-1]
+    ask-developer: >
+      이 지원서가 받는 항목 가운데 직무 수행에 필요하지 않은 것이 있나요? 키·체중·용모, 출신지역·혼인여부·재산,
+      가족의 학력·직업·재산은 직무 수행에 필요하지 않으면 기초심사자료에 적게 하거나 입증자료로 받을 수 없습니다.
+      직무상 꼭 필요한 항목이라면 그 까닭을 검토자에게 알려 주세요.
+
+    legal:
+      violated-when-failed:
+        # 조문 본문이 금지 항목을 호로 열거한다. 그래서 규칙 셋이 호 1·2·3 에 그대로 대응한다.
+        # 별표나 외부 표준(예: 접근성의 KWCAG)을 거치지 않는 드문 조문이다.
+        # 의무 지도(docs/lawmap/duties.jsonl)가 detect: static 으로 분류한 의무 11개 가운데 하나이고,
+        # 그중 조문 본문만으로 판단 기준이 서는 것은 넷뿐이다(나머지 일곱은 별표에 기댄다).
+        #
+        # 제4조의3 은 제1항·제2항이 없는 단항 조문이라 clause 를 두지 않는다.
+        # 위반 시 제17조제3항에 따라 500만원 이하 과태료가 있으나, 그 조문은 고정하지 않았으므로
+        # 이용자에게 보이는 글에 적지 않는다(이 주석에만 둔다. 출처: 2026-11-24 조문 대조).
+        - statute: 채용절차의 공정화에 관한 법률
+          article: 제4조의3
+          clause: null
+          url: https://www.law.go.kr/법령/채용절차의공정화에관한법률
+          text-file: _legal/hiring-act-4-3.txt
+          text-sha256: 7580f85e110f2238707b996272eb4c6b6209e5ef3b7e9d4fc1cb08c5f5b63f75
+          text-retrieved: '2026-11-24'
+          effective-from: '2020-05-26'
+          law-id: '011532'
+    review:
+      review-by: 2027-11-24
+    rationale:
+      motivation: >
+        지원서 폼과 스키마에 키·체중·혼인여부·부모 직업 같은 칸이 남아 있는 경우가 있다. 조문이 금지 항목을
+        호로 열거하므로, 그 칸이 코드에 있는지는 폼·스키마의 필드 이름과 라벨로 확인할 수 있다.
+      implementation: >
+        지원서·이력서 맥락인 파일에서 금지 항목에 해당하는 폼 필드 이름·라벨·스키마 키를 찾는다. 호마다 규칙이
+        따로 있어 어느 호에 걸렸는지 보인다. 직무 수행에 필요한 경우는 조문이 두는 예외라 경고를 지우지 않고
+        판정자에게 묻는다. 필드 이름이 지원서가 아닌 뜻으로 쓰인 경우(상품 치수의 height, 정적 자산의 assets)는
+        지원서 맥락 조건과 교차해 걸러 내고, 남는 것은 판정자가 가린다.
+
+    rules:
+      # ── 제1호 용모·키·체중 등의 신체적 조건 ────────────────────────────────
+      - id: applicant-physical-fields
+        scope: file
+        applies-when:
+          - id: application-form
+            # 지원서·이력서 맥락. 이 조건이 없으면 height·weight 가 레이아웃 속성에도 걸린다.
+            # apply 는 Function.prototype.apply 와 applyFilter 가 흔해 낱말 그대로는 쓰지 않고,
+            # 지원서를 뜻하는 꼴(applicant, ApplicationForm, /apply 경로)만 받는다.
+            static:
+              pattern-regex: (?-i:\bapplicant\w*|\bApplicant\w*|\bApplicationForm\b|\bJobApplication\w*|\bresumeForm\b|\bRecruitForm\b)|지원서|지원자|입사지원|이력서|채용\s*지원|/(apply|careers|recruit)\b
+          - id: physical-field
+            # 폼 필드·스키마 키·라벨로 드러나는 신체적 조건. 이름만 보는 조건이 아니라
+            # name= 속성, 검증 스키마 키, 한글 라벨 문자열의 세 꼴로 좁힌다.
+            static:
+              pattern-either:
+                - pattern-regex: name\s*=\s*["'{]?\s*["']?(height|weight|bodyType|physique|appearance)\b
+                - pattern-regex: '(?m)^\s*(height|weight|bodyType|physique|appearance)\s*[?]?\s*:'
+                - pattern-regex: '["''](height|weight|bodyType|physique|appearance)["'']\s*:'
+                - pattern-regex: (신장|체중|몸무게|용모)\s*\(?\s*(cm|kg)?\s*\)?\s*["'<:]
+        applies-ai:
+          question: 이 코드는 입사 지원서(또는 이력서) 입력 폼이나 그 검증 스키마를 정의하는가?
+
+        compliant-if-any:
+          - id: job-requirement-gate
+            strength: weak
+            # 직무 필요성을 나타내는 조건부 렌더·플래그. 이름만 보는 약한 근거라 혼자서는 경고를 풀지 못한다.
+            static:
+              pattern-regex: (?-i:\bjobRequires\w*|\brequiredForJob\b|\bphysicalRequirement\w*|\bblindHiring\b)|직무\s*(상\s*)?필요|블라인드\s*채용
+            on-unsatisfied:
+              message: 직무 수행에 필요해서 받는다는 표시가 보이지 않습니다.
+              ask-developer: 키·체중·용모를 받는 까닭이 직무 수행에 필요해서인가요? 그렇다면 어느 직무의 무슨 요건인가요?
+
+          - id: ai-physical-job-required
+            ai:
+              question: >
+                이 지원서가 받는 키·체중·용모 등 신체적 조건이 그 직무의 수행에 필요해서 받는 것인가?
+                직무 요건에 따라 조건부로만 보여 주거나, 특정 직무에서만 받는 코드가 있으면 그 줄을 인용하라.
+                모든 지원자에게 똑같이 받으면 '아니오'다.
+              evidence: required
+            on-unsatisfied:
+              message: 직무 수행에 필요하지 않은 신체적 조건(용모·키·체중)을 지원서에서 받는 것으로 보입니다.
+              ask-developer: 이 항목이 직무 수행에 필요한 까닭을 알려 주세요.
+              remediation: 직무에 필요하지 않다면 지원서에서 그 칸을 빼세요. 필요한 직무에만 조건부로 보이게 하세요.
+
+      # ── 제2호 출신지역·혼인여부·재산 ──────────────────────────────────────
+      - id: applicant-origin-marital-asset-fields
+        scope: file
+        applies-when:
+          - id: application-form
+            static:
+              pattern-regex: (?-i:\bapplicant\w*|\bApplicant\w*|\bApplicationForm\b|\bJobApplication\w*|\bresumeForm\b|\bRecruitForm\b)|지원서|지원자|입사지원|이력서|채용\s*지원|/(apply|careers|recruit)\b
+          - id: origin-marital-asset-field
+            static:
+              pattern-either:
+                - pattern-regex: name\s*=\s*["'{]?\s*["']?(hometown|birthPlace|originRegion|maritalStatus|isMarried|marriage|personalAssets|netWorth)\b
+                - pattern-regex: '(?m)^\s*(hometown|birthPlace|originRegion|maritalStatus|isMarried|marriage|personalAssets|netWorth)\s*[?]?\s*:'
+                - pattern-regex: '["''](hometown|birthPlace|originRegion|maritalStatus|isMarried|personalAssets|netWorth)["'']\s*:'
+                - pattern-regex: (출신\s*지역|본적|혼인\s*여부|결혼\s*여부|기혼\s*/?\s*미혼|재산\s*(상황|정도))\s*["'<:]
+        applies-ai:
+          question: 이 코드는 입사 지원서(또는 이력서) 입력 폼이나 그 검증 스키마를 정의하는가?
+
+        compliant-if-any:
+          - id: job-requirement-gate
+            strength: weak
+            static:
+              pattern-regex: (?-i:\bjobRequires\w*|\brequiredForJob\b|\bblindHiring\b)|직무\s*(상\s*)?필요|블라인드\s*채용
+            on-unsatisfied:
+              message: 직무 수행에 필요해서 받는다는 표시가 보이지 않습니다.
+              ask-developer: 출신지역·혼인여부·재산을 받는 까닭이 직무 수행에 필요해서인가요?
+
+          - id: ai-origin-job-required
+            ai:
+              question: >
+                이 지원서가 받는 출신지역·혼인여부·재산이 그 직무의 수행에 필요해서 받는 것인가?
+                직무 요건에 따라 조건부로만 받는 코드가 있으면 그 줄을 인용하라. 모든 지원자에게 똑같이 받으면 '아니오'다.
+              evidence: required
+            on-unsatisfied:
+              message: 직무 수행에 필요하지 않은 출신지역·혼인여부·재산을 지원서에서 받는 것으로 보입니다.
+              ask-developer: 이 항목이 직무 수행에 필요한 까닭을 알려 주세요.
+              remediation: 직무에 필요하지 않다면 지원서에서 그 칸을 빼세요.
+
+      # ── 제3호 직계 존비속 및 형제자매의 학력·직업·재산 ──────────────────────
+      - id: applicant-family-fields
+        scope: file
+        applies-when:
+          - id: application-form
+            static:
+              pattern-regex: (?-i:\bapplicant\w*|\bApplicant\w*|\bApplicationForm\b|\bJobApplication\w*|\bresumeForm\b|\bRecruitForm\b)|지원서|지원자|입사지원|이력서|채용\s*지원|/(apply|careers|recruit)\b
+          - id: family-field
+            static:
+              pattern-either:
+                - pattern-regex: name\s*=\s*["'{]?\s*["']?(parentJob|parentOccupation|parentEducation|familyEducation|familyJob|familyAssets|siblingJob|fatherJob|motherJob)\b
+                - pattern-regex: '(?m)^\s*(parentJob|parentOccupation|parentEducation|familyEducation|familyJob|familyAssets|siblingJob|fatherJob|motherJob)\s*[?]?\s*:'
+                - pattern-regex: '["''](parentJob|parentOccupation|parentEducation|familyEducation|familyJob|familyAssets|siblingJob)["'']\s*:'
+                - pattern-regex: (부모|아버지|어머니|형제|자매|가족)\s*(의\s*)?(학력|직업|재산|직장)\s*["'<:]
+        applies-ai:
+          question: 이 코드는 입사 지원서(또는 이력서) 입력 폼이나 그 검증 스키마를 정의하는가?
+
+        compliant-if-any:
+          - id: job-requirement-gate
+            strength: weak
+            static:
+              pattern-regex: (?-i:\bjobRequires\w*|\brequiredForJob\b|\bblindHiring\b)|직무\s*(상\s*)?필요|블라인드\s*채용
+            on-unsatisfied:
+              message: 직무 수행에 필요해서 받는다는 표시가 보이지 않습니다.
+              ask-developer: 가족의 학력·직업·재산을 받는 까닭이 직무 수행에 필요해서인가요?
+
+          - id: ai-family-job-required
+            ai:
+              question: >
+                이 지원서가 받는 가족(직계 존비속·형제자매)의 학력·직업·재산이 그 직무의 수행에 필요해서
+                받는 것인가? 직무 요건에 따라 조건부로만 받는 코드가 있으면 그 줄을 인용하라.
+                모든 지원자에게 똑같이 받으면 '아니오'다.
+              evidence: required
+            on-unsatisfied:
+              message: 직무 수행에 필요하지 않은 가족의 학력·직업·재산을 지원서에서 받는 것으로 보입니다.
+              ask-developer: 이 항목이 직무 수행에 필요한 까닭을 알려 주세요.
+              remediation: 직무에 필요하지 않다면 지원서에서 그 칸을 빼세요.
