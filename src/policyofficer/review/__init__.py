@@ -1086,10 +1086,24 @@ def _base(d: dict, static: list[dict]) -> dict:
 
 def with_sanction(item: dict) -> dict:
     """체크리스트 항목에 의무별 제재(profile/sanctions.jsonl 의 레코드에서 duty 를 뺀 것)를 붙인다. 표에 없는 의무나
-    이미 붙은 항목은 그대로다. 기록 재생은 이것으로 옛 결과에도 붙인다."""
+    이미 붙은 항목은 그대로다."""
     s = load_sanctions().get(item.get("duty", ""))
     if s is not None and "sanction" not in item:
         item["sanction"] = copy.deepcopy(s)
+    return item
+
+
+def with_tables(item: dict, duties: dict[str, dict] | None = None) -> dict:
+    """기록 재생: 화면에 쓰는 글(제재, 조문 표기)을 지금의 표 값으로 덮어쓴다. 결과 파일에는 그때의 글이 남아 있어
+    표를 고친 뒤(11/24: '시정명령을 어기면' → '시정명령 불이행 시', '시행령 시행령')에도 옛 글이 나왔다. 표에 없는
+    의무는 파일 값 그대로다. 판정과 인용은 건드리지 않는다. `duties` 는 의무 id → 의무 표의 줄."""
+    did = item.get("duty", "")
+    s = load_sanctions().get(did)
+    if s is not None:
+        item["sanction"] = copy.deepcopy(s)
+    row = (duties if duties is not None else {d["id"]: d for d in load_duties()}).get(did)
+    if row and row.get("article"):
+        item["article"] = row["article"]
     return item
 
 

@@ -1012,12 +1012,14 @@ def cmd_replay(args) -> int:
         raise ConfigError(f"review 결과가 아닙니다(checklist·run 이 없음): {args.file}")
     if not args.speed > 0:
         raise ConfigError("--speed 는 0 보다 커야 합니다")
-    from policyofficer.review import with_sanction
+    from policyofficer.profile import load_duties
+    from policyofficer.review import with_tables
 
+    duties = {d["id"]: d for d in load_duties()}
     for c in doc["checklist"]:
-        with_sanction(c)  # 제재 표보다 앞선 결과도 의무 id 로 붙여 보인다
+        with_tables(c, duties)  # 제재·조문 표기는 지금 표의 글로 다시 그린다(판정과 인용은 파일 그대로)
     begin, events = replay.timeline(doc)
-    begin = dataclasses.replace(begin, repo=path.stem)
+    begin = dataclasses.replace(begin, repo=_replay_name(path, begin.commit))
     total = float(doc["run"].get("seconds") or 0.0)
     start = [0.0]
     shown = progress.make(args.progress, sys.stderr, clock_=lambda: (time.monotonic() - start[0]) * args.speed)
@@ -1034,6 +1036,15 @@ def cmd_replay(args) -> int:
     _display_error(shown)
     _print_summary(doc, path)
     return EXIT_OK
+
+
+def _replay_name(path: Path, commit: str | None) -> str:
+    """결과 파일 이름에서 저장소 이름. review 가 두는 '<저장소>-<커밋 12자>.json' 의 커밋과 '<이름>.review.json' 의
+    '.review' 를 뗀다."""
+    name = path.stem.removesuffix(".review")
+    if commit and name.endswith(f"-{commit[:12]}"):
+        name = name[: -len(commit[:12]) - 1]
+    return name or path.stem
 
 
 COMMANDS = {
