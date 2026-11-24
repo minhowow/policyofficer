@@ -1084,6 +1084,19 @@ def _base(d: dict, static: list[dict]) -> dict:
     return with_sanction(out)
 
 
+def feature_counts(features: list[dict]) -> dict[str, int]:
+    """기능 파악이 한 일(진행 화면): 남은 기능 수, 신호로 잡힌 수, AI 가 뺀 수·더한 수, 정적 규칙만 더한 수.
+    기능 목록(select 의 첫 값, 결과의 profile.features)에서 센다. 기록 재생도 같은 것을 쓴다."""
+    src = [set(f.get("sources", [])) for f in features]
+    return {
+        "features": sum(1 for f in features if "removed" not in f),
+        "signals": sum(1 for s in src if "signal" in s),
+        "removed": sum(1 for f in features if "removed" in f),
+        "added": sum(1 for s in src if "model" in s and "signal" not in s),
+        "static_added": sum(1 for s in src if s == {"static"}),
+    }
+
+
 def with_sanction(item: dict) -> dict:
     """체크리스트 항목에 의무별 제재(profile/sanctions.jsonl 의 레코드에서 duty 를 뺀 것)를 붙인다. 표에 없는 의무나
     이미 붙은 항목은 그대로다."""
@@ -1401,8 +1414,8 @@ def review(
     by_feature = {f["id"]: f for f in features}
     groups = groups_of(review_duties, limits.batch)
     plats = _platforms(platforms)
-    live = sum(1 for f in features if "removed" not in f)
-    detail = {"features": live, "nodes": len(und["nodes"]), "edges": len(und["edges"]), "answered": und["answered"]}
+    detail = {**feature_counts(features), "nodes": len(und["nodes"]), "edges": len(und["edges"])}
+    detail["answered"] = und["answered"]
     progress(E.Stage("understand", "skip" if reuse is not None else "end", {**detail, "why": "reused"}))
 
     lock, done = threading.Lock(), [0]

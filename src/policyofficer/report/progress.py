@@ -174,6 +174,10 @@ class Glyphs:
             setattr(self, k, v)
 
 
+def dot_sep(g: Glyphs) -> str:
+    return f" {g.dot} "
+
+
 SGR = {"bold": "1", "dim": "2", "ok": "32", "run": "36", "warn": "33", "fail": "31", "heavy": "1;31"}
 
 
@@ -184,6 +188,79 @@ def clock(seconds: float) -> str:
 
 def model_name(spec: str | None) -> str:
     return (spec or "").removeprefix("anthropic:")
+
+
+_MODEL = re.compile(r"claude-([a-z]+)-(\d+)(?:-(\d{1,2}))?(?:-\d{8})?")
+
+
+def model_label(spec: str | None) -> str:
+    """머리에 쓰는 모델 이름: 'anthropic:claude-haiku-5-5' → 'Claude Haiku 5.5'. 반박 범위 꼬리('(found)')는 뗀다.
+    모르는 모양은 그대로."""
+    name = re.sub(r"\(.*\)$", "", model_name(spec)).strip()
+    m = _MODEL.fullmatch(name)
+    if not m:
+        return name
+    family, major, minor = m.groups()
+    return f"Claude {family.capitalize()} {major}" + (f".{minor}" if minor else "")
+
+
+def repo_label(repo: str) -> str:
+    """머리의 저장소 이름. 평가용 복제의 '소유자__저장소' 에서 소유자를 뗀다(GitHub 소유자 이름에는 '_' 가 없다)."""
+    return re.sub(r"^[A-Za-z0-9-]+__(?=.)", "", repo)
+
+
+def host(egress: str) -> str:
+    """코드가 나가는 곳의 호스트(머리 한 줄). 주소로 읽지 못하면 받은 값 그대로."""
+    from urllib.parse import urlsplit
+
+    try:
+        netloc = urlsplit(egress).netloc
+    except ValueError:
+        return egress
+    return netloc.rsplit("@", 1)[-1] or egress
+
+
+_RE_DROP = [
+    (re.compile(r"\(\?[a-zA-Z]+\)|\(\?(?:[:=!]|<[=!]|P?<\w+>)"), ""),  # (?i) (?: (?= (?<name>
+    (re.compile(r"\[[^\]]*\]"), " "),  # 문자 묶음 [A-Z_]
+    (re.compile(r"\{\d*,?\d*\}"), ""),  # {2,3}
+]
+
+
+def search_words(pattern: str) -> list[str]:
+    """검색 정규식을 사람이 읽는 낱말로: '|' 로 나누고 정규식 기호를 뗀다(같은 낱말은 한 번). 이스케이프한 글자
+    ('\\.', '\\(')는 그 글자로, '\\b'·'\\s' 같은 것과 아무 글자 '.' 는 빈칸으로."""
+    out: list[str] = []
+    for part in re.split(r"(?<!\\)\|", pattern):
+        for rx, to in _RE_DROP:
+            part = rx.sub(to, part)
+        buf, i = [], 0
+        while i < len(part):
+            ch = part[i]
+            if ch == "\\" and i + 1 < len(part):
+                nxt = part[i + 1]
+                buf.append(" " if nxt in "bBdDsSwWAZ" else nxt)
+                i += 2
+                continue
+            if ch not in "()^$*+?":
+                buf.append(" " if ch == "." else ch)
+            i += 1
+        w = " ".join("".join(buf).split()).rstrip(".")
+        if w and w not in out:
+            out.append(w)
+    return out
+
+
+def fit_words(words: list[str], w: int, sep: str, more: str) -> str:
+    """낱말을 `sep` 로 이어 폭 `w` 안으로. 모자라면 낱말 단위로 자르고 `more` 를 붙인다."""
+    out = ""
+    for i, word in enumerate(words):
+        nxt = f"{out}{sep}{word}" if out else word
+        tail = f" {more}" if i < len(words) - 1 else ""
+        if width(nxt + tail) > w:
+            return f"{out} {more}" if out else fit(word, w, more)
+        out = nxt
+    return out
 
 
 def article(a: str) -> str:
@@ -214,6 +291,23 @@ def failure_text(f: str | None) -> str:
     return {"cost-cap": "금액 상한", "time-cap": "시간 상한", "parse": "답을 읽지 못함", "turns": "대화가 너무 김"}.get(
         f, f
     )
+
+
+def understood(d: dict, sep: str) -> str:
+    """기능 파악이 한 일: '기능 6개(신호 7개 중 2개 뺌 · 1개 더함) · 개인정보 흐름 6칸'. 신호 수가 없는 사건(옛 판)은
+    기능 수만."""
+    text = f"기능 {d.get('features', 0)}개"
+    if "signals" in d:
+        n, cut, add, static = d["signals"], d.get("removed", 0), d.get("added", 0), d.get("static_added", 0)
+        parts = [f"신호 {n}개 중 {cut}개 뺌"] if cut else []
+        if add:
+            parts.append(f"{add}개 더함" if cut else f"신호 {n}개에 {add}개 더함")
+        if static:
+            parts.append(f"정적 규칙으로 {static}개")
+        text += f"({sep.join(parts)})" if parts else f"(신호 {n}개 그대로)"
+    if d.get("nodes"):
+        text += f"{sep}개인정보 흐름 {d['nodes']}칸"
+    return text
 
 
 class State:
@@ -291,11 +385,11 @@ class State:
                 return "저장소를 읽는 중"
             if not d.get("answered"):
                 return "답을 받지 못함"
-            return f"기능 {d.get('features', 0)}개{sep}흐름 마디 {d.get('nodes', 0)}개"
+            return understood(d, sep)
         if stage == "investigate":
             total = self.stages["investigate"][1].get("questions", 0)
             duties = self.stages["investigate"][1].get("duties", 0)
-            return f"질문 {self.by_stage['investigate']}/{total}{sep}의무 {duties}개"
+            return f"의무 {duties}개를 골라 질문 {self.by_stage['investigate']}/{total}"
         if stage == "rebut":
             return f"질문 {self.by_stage['rebut']}개{sep}뒤집음 {self.overturned}"
         if stage == "gate":
@@ -472,7 +566,7 @@ class Plain(Display):
             if ev.state == "fail":
                 detail = clean(ev.detail.get("error", ""))
             elif ev.state == "start" and ev.stage == "investigate":
-                detail = f"질문 {ev.detail.get('questions', 0)}개{dot}의무 {ev.detail.get('duties', 0)}개"
+                detail = f"의무 {ev.detail.get('duties', 0)}개를 골라 질문 {ev.detail.get('questions', 0)}개"
             elif ev.state != "start" or ev.stage in ("profile", "static"):
                 detail = st.stage_text(ev.stage, g.dot)
             self._line(f"{name} {word}" + (f"{dot}{detail}" if detail else ""))
@@ -538,17 +632,13 @@ class Tty(Display):
         rows: list[tuple[str, str | None]] = []
         if b.replay is not None:
             rows.append((f"기록 재생{dot}모델 호출 없음{dot}원래 {clock(b.replay)}", "bold"))
-        commit = f" @ {b.commit[:12]}" if b.commit else ""
-        rows.append((f"policyofficer review{dot}{clean(b.repo)}{commit}", None if b.replay is not None else "bold"))
-        check = model_name(b.checker) if b.checker else "끔"
-        cfg = (
-            f"조사 {model_name(b.model)}{dot}반박 {check}{dot}묶음 {b.batch}{dot}상한 ${b.usd:g}{dot}{clock(b.seconds)}"
-        )
-        rows.append((cfg, "dim"))
+        commit = f" @ {b.commit[:7]}" if b.commit else ""
+        repo = clean(repo_label(b.repo))
+        rows.append((f"policyofficer review{dot}{repo}{commit}", None if b.replay is not None else "bold"))
+        check = clean(model_label(b.checker)) if b.checker else "끔"
+        rows.append((f"조사 {clean(model_label(b.model))}{dot}반박 {check}", "dim"))  # 상한은 바닥 줄에 있다
         if b.egress:
-            rows.append(
-                (f"모델이 읽은 파일의 코드가 {b.egress} 로 나갑니다(비밀값은 가리고 .env 등은 읽지 않음)", "dim")
-            )
+            rows.append((f"읽은 코드가 {clean(host(b.egress))} 으로 나감{dot}비밀값 가림{dot}.env 등 안 읽음", "dim"))
         text = "".join(self._style(line, style) + "\n" for t, style in rows for line in wrap(t, cols))
         self._write(text + "\n\x1b[?25l")
         self._hidden = True
@@ -614,8 +704,8 @@ class Tty(Display):
         elapsed = self.elapsed()
         b = st.begin
         foot = clock(elapsed) + (f" / {clock(b.seconds)}" if b else "")
-        foot += f"{dot}어림 ${st.usd:.2f}" + (f" / ${b.usd:g}" if b else "")
-        foot += f"{dot}질문 {st.done}/{max(st.planned, st.done)}"
+        foot += f"{dot}어림 ${st.usd:.2f}" + (f" / ${b.usd:.2f}" if b else "")
+        foot += f"{dot}전체 질문 {st.done}/{max(st.planned, st.done)}"
         if b and b.replay is not None:
             foot += f"{dot}기록 재생"
         room = rows - 1 - len(lines) - len(tail) - 3
@@ -632,7 +722,7 @@ class Tty(Display):
 
     def _label(self, a: dict) -> str:
         if a["stage"] == "understand":
-            return "서비스 이해"
+            return E.STAGES["understand"]
         return (f"반박{self.g.dot} " if a["stage"] == "rebut" else "") + duty_label(a["duties"])
 
     def _question(self, a: dict, cols: int, widest: int) -> list:
@@ -651,8 +741,9 @@ class Tty(Display):
         else:
             name, target = a["doing"]
             verb = DOING.get(name, clean(name)) + " "
-            if name == "search":
-                doing = verb + fit(f"'{clean(target)}'", doing_w - width(verb), g.more)
+            if name == "search":  # 정규식 원문 대신 낱말로(plain 기록과 JSON 은 원문 그대로)
+                words = search_words(clean(target)) or [clean(target)]
+                doing = verb + fit_words(words, doing_w - width(verb), dot_sep(g), g.more)
             else:
                 doing = verb + fit_tail(clean(target), doing_w - width(verb), g.more)
         return [*segs, ("  ", None), (fit(doing, doing_w, g.more), "dim")]

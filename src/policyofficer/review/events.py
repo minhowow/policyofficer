@@ -1,6 +1,6 @@
 """review 가 내는 진행 사건. 계산 코드는 사건을 내기만 하고, 그리는 일은 report/progress 의 표시기가 한다.
 
-사건은 실제 코드가 도는 순서대로 나온다. 근거 찾기·반박·인용 대조는 의무 묶음마다 이어서 돌아 서로 겹친다(묶음 하나의
+사건은 실제 코드가 도는 순서대로 나온다. 의무별 조사·반박·직접 대조는 의무 묶음마다 이어서 돌아 서로 겹친다(묶음 하나의
 조사 답이 오면 바로 인용을 대조하고, 그 묶음의 반박을 묻는다). 질문은 Run.ask 한 번(run.questions 의 기록 하나)이다.
 기록 재생(review/replay)도 저장된 결과에서 같은 사건을 만들어 같은 표시기로 그린다.
 """
@@ -12,13 +12,14 @@ from dataclasses import dataclass, field
 
 STAGES = {
     "profile": "기능 신호",
-    "static": "정적 검사",
-    "understand": "서비스 이해",
-    "investigate": "근거 찾기",
+    "static": "정적 규칙",
+    "understand": "기능 파악",
+    "investigate": "의무별 조사",
     "rebut": "반박",
-    "gate": "인용 대조",
+    "gate": "직접 대조",
 }
-"""단계와 그 이름. 표시기는 이 순서로 늘어놓는다."""
+"""단계와 그 이름. 표시기는 이 순서로 늘어놓는다. 이름은 포스터·영상·웹이 같은 과정을 부르는 말과 같다(기능 파악 →
+의무 고르기 → 의무별 조사 → 반박 → 직접 대조 → 체크리스트. 2026-11-25)."""
 
 
 @dataclass(frozen=True)
@@ -47,7 +48,8 @@ class Stage:
     """start | end | skip | fail"""
     detail: dict = field(default_factory=dict)
     """단계마다 다르다. profile: features·platforms, static: findings·duties·error, understand: features·nodes·
-    reused, investigate: questions·duties, skip: why."""
+    reused·signals(신호로 잡힌 기능 수)·removed(AI 가 뺀 수)·added(AI 가 더한 수)·static_added(정적 규칙만 더한 수),
+    investigate: questions·duties, skip: why."""
 
 
 @dataclass(frozen=True)

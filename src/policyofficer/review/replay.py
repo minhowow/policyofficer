@@ -7,7 +7,7 @@ checklist(조사 답 first, 반박 verification). 결과에 없는 것은 이렇
   - 도구 호출의 순서: 기록은 읽은 파일과 검색어를 따로 모은다(같은 파일을 두 번 읽은 것은 하나). 둘을 번갈아 질문의
     시간 안에 고르게 놓는다.
   - 상한에 걸려 보내지 않은 질문: 기록에 시각이 없어 바로 앞 질문이 끝난 때에 놓는다.
-  - 429 로 동시 수를 줄인 것: 시각이 없어 근거 찾기가 시작할 때 한 번 알린다.
+  - 429 로 동시 수를 줄인 것: 시각이 없어 의무별 조사가 시작할 때 한 번 알린다.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ import time
 from collections.abc import Callable
 
 from policyofficer.review import events as E
-from policyofficer.review import first_cite
+from policyofficer.review import feature_counts, first_cite
 from policyofficer.review.prompts import STATUS_LABEL
 
 STAGE_OF = {"understand": "understand", "investigate": "investigate", "rebut": "rebut"}
@@ -85,9 +85,9 @@ def timeline(doc: dict, short: dict[str, str] | None = None) -> tuple[E.Begin, l
         at(first_q, E.Stage("static", "end", {"findings": hits, "duties": static.get("duties", 0)}))
 
     und = run.get("understanding", {})
-    live = sum(1 for f in prof.get("features", []) if "removed" not in f)
     flow = doc.get("data_flow", {})
-    detail = {"features": live, "nodes": len(flow.get("nodes", [])), "answered": und.get("answered", True)}
+    detail = {**feature_counts(prof.get("features", [])), "nodes": len(flow.get("nodes", []))}
+    detail["answered"] = und.get("answered", True)
     inv = [q for q in qs if q.get("stage") == "investigate"]
     reb = [q for q in qs if q.get("stage") == "rebut"]
     if und.get("reused"):

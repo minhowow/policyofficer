@@ -94,7 +94,7 @@ def test_a_piped_stdout_gets_the_same_json_and_plain_stderr_has_no_escape(tmp_pa
     lines = err.splitlines()
     assert lines[0].startswith("검토(anthropic:m1, 반박 anthropic:m2, 묶음 duty): 모델이 읽은 파일의 코드가 ")
     assert all(re.match(r"\[\d\d:\d\d\] ", ln) for ln in lines[1:])
-    assert any("근거 찾기 시작" in ln for ln in lines) and any("반박 끝" in ln for ln in lines)
+    assert any("의무별 조사 시작" in ln for ln in lines) and any("반박 끝" in ln for ln in lines)
     usd = doc["run"]["usd_estimate"]
     assert lines[-1].endswith(f"검토 끝 · 질문 {len(doc['run']['questions'])}개 · 어림 ${usd:.2f}")
 
