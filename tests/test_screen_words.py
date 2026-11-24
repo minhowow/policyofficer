@@ -1,5 +1,5 @@
-"""포스터·영상에 실리는 화면의 말(2026-11-25): 단계 이름, 머리 세 줄, 검색 낱말, 바닥 줄, 기능 파악 줄, 기록 재생이
-쓰는 표의 글. 화면만 바뀌고 JSON 은 그대로다. 모델 호출 0회."""
+"""포스터·영상에 실리는 화면의 말(2026-11-25): 단계 이름, 머리 세 줄, 검색 낱말, 바닥 줄, 기능 파악 줄, 끝 요약의 첫
+줄과 도구 대조, 기록 재생이 쓰는 표의 글. 화면만 바뀌고 JSON 은 그대로다. 모델 호출 0회."""
 
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ from policyofficer import review as rv
 from policyofficer.judge.agent import AgentJudge
 from policyofficer.judge.fake import review_transport
 from policyofficer.report import progress
+from policyofficer.report.review_text import NOTE, SANCTION_NOTE, render, tool_check
 from policyofficer.review import events as E
 from policyofficer.review import replay
 
@@ -189,3 +190,68 @@ def test_replay_draws_old_results_with_todays_table(tmp_path, monkeypatch, capsy
         assert "시정명령을 어기면" not in text and "시행령 시행령" not in text
     assert f"{decree['law_short']} {progress.article(decree['article'])}" in out
     assert out.count("어기면 · ") > 0 and "질문 1 보냄 · 기능 파악" in err
+
+
+def _item(rank: int, cls: str, status: str = "seen-in-code") -> dict:
+    return {
+        "duty": f"d{rank}",
+        "law": "개인정보 보호법",
+        "article": f"제{rank}조",
+        "title": f"의무 {rank}",
+        "status": status,
+        "rank": rank,
+        "citations": [{"file": "src/a.ts", "line": rank, "ok": True}],
+        "sanction": {"class": cls, "label": cls, "max_won": None, "items": [], "note": None, "as_of": "2026-11-25"},
+    }
+
+
+def _doc(cites: list[str], searches: list[str], extra: dict | None = None) -> dict:
+    items = [_item(1, "징역"), _item(2, "과징금", "check-outside"), _item(3, "과태료")]
+    items.append(_item(4, "없음", "not-applicable"))
+    items[0]["first"] = {
+        "citations": [{"ok": w == "grounded", "why": w} for w in cites] + [{"ok": True, "why": "profile"}],
+        "searches": [{"ok": w == "match", "why": w} for w in searches],
+    }
+    run = {"seconds": 155, "usd_estimate": 0.4668, "questions": [{}] * 20}
+    run |= {
+        "citations": len(cites),
+        "citations_rejected": sum(w != "grounded" for w in cites),
+        "searches": len(searches),
+        "searches_rejected": sum(w != "match" for w in searches),
+    }
+    return {"run": run | (extra or {}), "checklist": items}
+
+
+def test_the_summary_first_line_counts_what_to_check_and_the_heavy_ones():
+    out = render(_doc(["grounded"], []), None, False, 80)
+    assert out.splitlines()[0] == "✓ 검토 끝 · 확인할 것 3건(징역·과징금 2건) · 2:35 · 어림 $0.47 · 질문 20개"
+    light = _doc([], [])
+    light["checklist"] = [_item(3, "과태료")]
+    assert render(light, None, False, 80).splitlines()[0].startswith("✓ 검토 끝 · 확인할 것 1건 · 2:35")
+
+
+def test_the_tool_check_names_why_it_refused_and_sits_right_above_the_notes():
+    cites = ["grounded"] * 36 + ["test-file"] * 8 + ["too-short"] * 6 + ["not-found"] * 3 + ["comment-only"]
+    searches = ["match"] * 51 + ["mismatch"] * 6
+    parts = tool_check(_doc(cites, searches))
+    assert parts == [
+        "인용 54건 중 36건 받음(18건: 테스트 파일 8 · 너무 짧음 6 등)",
+        "'없다' 검색 57건 중 51건 같음(6건은 달라 근거로 안 씀)",
+    ]
+    assert tool_check(_doc(["grounded"] * 53 + ["too-short"], [])) == ["인용 54건 중 53건 받음(1건: 너무 짧음)"]
+    assert tool_check(_doc(["grounded"], ["match", "mismatch", "bad-pattern"])) == [
+        "인용 1건 모두 받음",
+        "'없다' 검색 3건 중 1건 같음(2건은 근거로 안 씀: 검색식 오류 1 · 결과가 다름 1)",  # 같은 수면 까닭 이름 순
+    ]
+    assert tool_check(_doc([], [])) == []
+    for cols in (None, 140, 80):
+        out = render(_doc(cites, searches), "/tmp/x.json", False, cols).splitlines()
+        at = next(i for i, ln in enumerate(out) if ln.startswith("도구 대조 · "))
+        assert out[at - 1].startswith("전체 결과(JSON): ")
+        notes = SANCTION_NOTE[:10]
+        nxt = next(i for i, ln in enumerate(out) if ln.startswith(notes))
+        assert "".join(ln.strip() for ln in out[at:nxt]).count("근거로 안 씀") == 1  # 자르지 않고 나눴다
+        assert out[-1].startswith(NOTE[:10]) or NOTE.endswith(out[-1].strip())
+        if cols:
+            assert all(progress.width(ln) <= cols for ln in out)
+    assert len([ln for ln in render(_doc(cites, searches), None, False, 140).splitlines() if "도구 대조" in ln]) == 1
