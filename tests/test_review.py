@@ -7,13 +7,13 @@ import re
 import zlib
 from pathlib import Path
 
+import jsonschema
 import pytest
 
 from policyofficer import review as rv
 from policyofficer.judge.agent import AgentAnswer, AgentJudge
 from policyofficer.review import prompts as P
 
-jsonschema = pytest.importorskip("jsonschema")
 SCHEMA = json.loads((Path(__file__).resolve().parents[1] / "schemas" / "review-2.json").read_text(encoding="utf-8"))
 
 FILES = {

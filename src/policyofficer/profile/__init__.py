@@ -20,9 +20,17 @@ from pathlib import Path
 from ruamel.yaml import YAML
 
 from policyofficer import __version__
-from policyofficer.discover import SKIP_DIRS, discover
-from policyofficer.index.graph import _IMPORT, READ_BYTES
-from policyofficer.index.roles import SERVICE, Role, classify
+from policyofficer.discover import SKIP_DIRS, code_files
+from policyofficer.roles import SERVICE, Role, classify
+
+_IMPORT = re.compile(
+    r"""(?:^|[^\w$.])(?:import|export)\s(?:[^'";]*?\sfrom\s*)?['"]([^'"\n]+)['"]"""
+    r"""|\b(?:require|import)\s*\(\s*['"]([^'"\n]+)['"]\s*\)""",
+    re.M,
+)
+"""import·export … from·require·import() 의 꾸러미 이름."""
+READ_BYTES = 400_000
+"""파일에서 신호를 찾을 때 읽는 앞부분."""
 
 HERE = Path(__file__).parent
 PROFILE_VERSION = 1
@@ -267,7 +275,7 @@ def scan(root: Path, m: Matcher) -> tuple[list[Hit], dict, dict]:
             for feat in m.package_features(name):
                 hits.append(Hit(feat, "package", name, rel, _line_of(text, f'"{name}"'), service))
 
-    for path in discover([root], ["javascript", "typescript"]).files:
+    for path in code_files(root):
         rel = path.relative_to(root).as_posix()
         try:
             with open(path, "rb") as fh:

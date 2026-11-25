@@ -1,7 +1,7 @@
 """파일 역할. 경로와 내용의 모양으로 하나를 고른다.
 
-역할은 후보를 고르는 힌트다. 판정의 근거가 아니다. 그래서 틀려도 경고를 지우는 쪽으로 쓰이지 않게 한다
-(예: '시험' 역할 파일도 검사 대상에서 빼지 않는다 — discover.py 의 첫 문단).
+역할은 힌트다. 기능 신호(profile)는 서비스 파일의 신호만 세고, 인용 관문(review.check)은 시험·설정 파일의 줄을 근거로
+받지 않는다.
 
   test     시험·스토리·목업. 경로 이름으로만 고른다
   config   설정 파일(*.config.*, .eslintrc 등)
@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import re
 from enum import Enum
-from pathlib import Path
 
 
 class Role(str, Enum):
@@ -72,14 +71,3 @@ def classify(rel: str, text: str) -> Role:
     if _SCREEN_PATH.search(rel) and rel.endswith((".jsx", ".tsx", ".vue", ".svelte")):
         return Role.SCREEN
     return Role.OTHER
-
-
-def file_role(rel: str, path: str | Path, limit: int = 400_000) -> Role:
-    """보고서에 싣는 파일 하나의 역할. `rel` 은 보고서와 같은 검사 루트 기준 경로다(절대 경로면 저장소 바깥 폴더
-    이름 `tests/` 까지 읽힌다). 내용은 색인(graph.READ_BYTES)과 같은 만큼만 읽는다. 읽지 못하면 경로로만 고른다."""
-    try:
-        with open(path, "rb") as fh:
-            text = fh.read(limit).decode("utf-8", errors="replace")
-    except OSError:
-        text = ""
-    return classify(rel, text)

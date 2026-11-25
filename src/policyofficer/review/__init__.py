@@ -5,9 +5,10 @@
    신호는 JS·TS 만 보는 단서다), 아닌 기능을 빼고, 플랫폼(웹·모바일 앱·서버)을 적고, 개인정보 흐름(마디와 화살표)을
    그린다. 기능·빼기·플랫폼·마디·화살표 모두 인용이 관문을 통과해야 받는다. 플랫폼은 프로필이 package.json 으로 가르지
    못했을 때만 이해 단계의 것을 쓴다. 같은 커밋의 앞 결과를 넘기면(`reuse`) 묻지 않고 그 결과를 관문에 다시 걸어 쓴다.
-3. 의무: 기능에 붙은 의무 전부가 목록 층이다. 그 가운데 검토 층 후보(조문 인용 대조 통과·확신 높음·지위가 아님)와 내장
-   팩(kr-core)이 다루는 의무를 묻는다. 묶음은 의무 하나(기본), 기능 하나(의무 최대 8개), 또는 표의 묶음(features.yaml
-   의 bundles: 같은 기능·같은 코드 범위를 보는 의무 4개까지)이다(`batch`). 답과 관문은 묶음이어도 의무마다다.
+3. 의무: 기능에 붙은 의무 전부가 목록 층이다. 그 가운데 검토 층 후보(조문 인용 대조 통과·확신 높음·지위가 아님)와 의무
+   표의 krcore 칸이 켜진 의무를 묻는다(220개, 제재 표와 1:1). 묶음은 의무 하나(기본), 기능 하나(의무 최대 8개), 또는
+   표의 묶음(features.yaml 의 bundles: 같은 기능·같은 코드 범위를 보는 의무 4개까지)이다(`batch`). 답과 관문은
+   묶음이어도 의무마다다.
 4. 근거 찾기: 조사 모델이 의무마다 상태와 인용·검색·질문을 낸다. 상태(prompts.STATUS_LABEL)와 받는 조건:
      충족 근거 있음        인용이 관문을 통과해야 한다. 아니면 '저장소 밖에서 확인할 것'
      코드에서 본 것        걸리는 처리의 인용이 관문을 통과해야 한다. 아니면 '저장소 밖에서 확인할 것'
@@ -75,12 +76,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from policyofficer import __version__
-from policyofficer.evaluate.agent_pass import gate
-from policyofficer.index.roles import SERVICE, Role, classify
-from policyofficer.judge.agent import AgentAnswer, AgentJudge, RepoTools
+from policyofficer.evidence import gate
+from policyofficer.judge.agent import MODELS, AgentAnswer, AgentJudge, RepoTools
 from policyofficer.profile import load_duties, load_features, load_sanctions, profile
 from policyofficer.review import events as E
 from policyofficer.review import prompts as P
+from policyofficer.roles import SERVICE, Role, classify
 
 REVIEW_VERSION = 2
 """1 → 2: '확인할 것'을 세 갈래(seen-in-code·check-outside·check-applicability)로 나누고, 부재 증명(searches)과
@@ -236,7 +237,7 @@ class Limits:
 
 
 def check(root: Path, citations: list[dict]) -> list[dict]:
-    """인용 관문(agent_pass.gate)에 더해, 시험·픽스처·설정 파일의 줄은 받지 않는다(why: test-file). 설정 파일이라도
+    """인용 관문(evidence.gate)에 더해, 시험·픽스처·설정 파일의 줄은 받지 않는다(why: test-file). 설정 파일이라도
     주소나 호스트 값이 글자 그대로 있는 줄은 받는다(why: config-value. 11/13 실측: Sentry DSN 줄을 받지 않았다)."""
     out, root = gate(root, citations), root.resolve()
     for c in out:
@@ -1504,7 +1505,6 @@ def build_judge(spec: str, throttle: Throttle, env: dict | None = None) -> Agent
     """`anthropic:<모델>` → 동시 요청 수를 `throttle` 로 묶은 에이전트 판정기. 키는 ANTHROPIC_API_KEY 에서 읽는다."""
     import os
 
-    from policyofficer.judge.anthropic_api import MODELS
     from policyofficer.judge.http import http_transport
 
     kind, _, model = spec.partition(":")

@@ -7,6 +7,7 @@ import re
 import shutil
 from pathlib import Path
 
+import jsonschema
 import pytest
 
 from policyofficer import cli, profile
@@ -16,7 +17,6 @@ from policyofficer.judge.fake import review_transport
 from policyofficer.report import progress
 from policyofficer.report.review_text import SANCTION_NOTE, render
 
-jsonschema = pytest.importorskip("jsonschema")
 SCHEMA = json.loads((Path(__file__).resolve().parents[1] / "schemas" / "review-2.json").read_text(encoding="utf-8"))
 
 

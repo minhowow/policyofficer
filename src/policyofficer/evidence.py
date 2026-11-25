@@ -1,14 +1,10 @@
-"""근거 관문 — AI가 경고를 해제할 자격이 있는지 본다.
+"""인용 관문 — 모델이 댄 인용이 코드에 실제로 있는지 본다(review 의 직접 대조).
 
-AI의 "예, 적법한 대안이 있다"는 **코드에 실제로 있는 코드를 인용할 때만** 인정한다. 인용은 코드에 글자 그대로
-(공백만 느슨하게) 있는 6자 이상의 연속된 조각이어야 하고, 줄 전체가 아닌 낱말 하나(`router`, `prisma`)는 받지
-않는다. 관문은
-인용이 코드에 있는지만 본다 — 그 줄이 질문과 관련 있는지는 보지 않는다. 그래서 AI 가 푼 경고는 인용과 함께
-보고서에 남는다.
-관문이 받지 않은 '예'는 '거짓'이 되지 않고 판정에서 빠져(판정자가 없을 때처럼) 경고가 남는다. 이 비대칭이
-방향성 신뢰의 핵심이다 — 약한 근거는 경고를 올릴 수는 있어도 내릴 수는 없다.
+인용은 코드에 글자 그대로(공백만 느슨하게) 있는 6자 이상의 연속된 조각이어야 하고, 줄 전체가 아닌 낱말 하나(`router`,
+`prisma`)는 받지 않는다. 관문은 인용이 코드에 있는지만 본다 — 그 줄이 의무와 관련 있는지는 보지 않는다. 그래서 인용은
+결과에 그대로 남아 사람이 본다.
 
-주석은 실행되지 않으므로 대안의 존재를 입증하지 못한다. 주석에서만 찾은 인용은 떨어진다.
+주석은 실행되지 않으므로 처리가 있다는 근거가 되지 못한다. 주석에서만 찾은 인용은 떨어진다.
 줄 끝에 주석이 붙은 코드 줄을 인용하면 주석을 뗀 나머지가 실행되는 코드에 있어야 한다
 (`ensureMinorPolicy(...) // 만 14세 미만 차단` 처럼 그 함수가 하는 일을 주석만 말해 주는 경우).
 
@@ -20,6 +16,7 @@ from __future__ import annotations
 
 import re
 from enum import Enum
+from pathlib import Path
 
 MIN_LENGTH = 6
 """인용이 이보다 짧으면 버린다. `}` 나 `true` 같은 것은 아무것도 입증하지 못한다."""
@@ -30,7 +27,7 @@ _WORD = re.compile(r"[\w$]+")
 
 class GateResult(str, Enum):
     GROUNDED = "grounded"
-    """실행되는 코드에서 찾았다. 경고를 해제할 수 있다."""
+    """실행되는 코드에서 찾았다."""
 
     TRAILING_COMMENT = "trailing-comment"
     """코드 줄에서 찾았지만 인용이 그 줄의 주석 부분에 걸쳐 있다."""
@@ -126,18 +123,16 @@ def classify(evidence: str, code: str, stripped: str | None = None) -> GateResul
     return GateResult.TRAILING_COMMENT
 
 
-def is_grounded(evidence: str, code: str, strict: bool = False, stripped: str | None = None) -> bool:
-    """이 인용으로 경고를 해제해도 되는가.
+def is_grounded(evidence: str, code: str, stripped: str | None = None) -> bool:
+    """이 인용을 근거로 받는가.
 
-    인용 전체가 코드에 있어야 한다. 실행되는 코드에서 찾으면 인정하고, 주석에서만 찾으면 떨어진다.
-    줄 끝에 주석이 달린 줄을 인용했으면 인용에서 주석을 떼고 남은 코드 부분이 실행되는 코드에 있을 때
-    인정한다. `strict`(evidence: strict)면 인용을 한 글자도 고치지 않고 주석 없는 코드에서 찾는다 —
-    줄 끝 주석이 붙은 인용도 떨어진다.
+    인용 전체가 코드에 있어야 한다. 실행되는 코드에서 찾으면 받고, 주석에서만 찾으면 떨어진다.
+    줄 끝에 주석이 달린 줄을 인용했으면 인용에서 주석을 떼고 남은 코드 부분이 실행되는 코드에 있을 때 받는다.
     """
     where = classify(evidence, code, stripped)
     if where is GateResult.GROUNDED:
         return True
-    if strict or where is not GateResult.TRAILING_COMMENT:
+    if where is not GateResult.TRAILING_COMMENT:
         return False  # 코드에 없거나(지어냄) 주석에만 있다
     bare_evidence = strip_comments(evidence)
     if len(_norm(bare_evidence)) < MIN_LENGTH:
@@ -178,3 +173,28 @@ def locate(evidence: str, code: str) -> list[int]:
             found.append(start)
         i = flat.find(ev, i + 1)
     return found
+
+
+def gate(root: Path, citations: list[dict]) -> list[dict]:
+    """인용마다 관문 결과. [{file, line, text, ok, why}]"""
+    root = root.resolve()
+    out = []
+    for c in citations:
+        f, text = str(c.get("file", "")), str(c.get("text", ""))
+        rec = {"file": f, "line": c.get("line"), "text": text, "ok": False, "why": ""}
+        p = (root / f.lstrip("/")).resolve()
+        if p != root and root not in p.parents:
+            rec["why"] = "outside-repo"
+        elif not p.is_file():
+            rec["why"] = "no-such-file"
+        else:
+            code = p.read_text(encoding="utf-8", errors="replace")
+            rec["ok"] = is_grounded(text, code)
+            rec["why"] = "grounded" if rec["ok"] else classify(text, code).value
+            if rec["ok"]:
+                # 줄 번호는 모델이 적은 값이다. 인용이 실제로 시작하는 줄로 맞추고, 다르면 모델의 값을 함께 남긴다
+                at = locate(text, code) or locate(strip_comments(text), strip_comments(code))
+                if at and rec["line"] not in at:
+                    rec["line_model"], rec["line"] = rec["line"], at[0]
+        out.append(rec)
+    return out

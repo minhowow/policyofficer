@@ -38,10 +38,13 @@ from pathlib import Path
 from ruamel.yaml import YAML
 
 REPO = Path(__file__).resolve().parents[1]
-PACK = REPO / "policies" / "kr-core" / "pack.yaml"
 FEATURES = REPO / "src" / "policyofficer" / "profile" / "features.yaml"
 TABLE = REPO / "src" / "policyofficer" / "profile" / "duties.jsonl"
 CSV_OUT = REPO / "lawmap" / "review-candidates.csv"
+#: 표의 krcore 칸. 옛 정책 팩(태그 static-final 의 policies/kr-core)이 다루던 의무로, 검토 후보가 아니어도 묻는다.
+KRCORE = frozenset(
+    {"aiact-31-1", "aiact-31-2", "netact-50-3", "netact-50-4", "netact-50-6", "pipa-22-2-1", "pipa-26-2", "pipa-28-8-1"}
+)
 
 COMMON, STATUS = "common", "status"
 _WS = re.compile(r"\s+")
@@ -132,9 +135,7 @@ def main(argv: list[str]) -> int:
     prohibitions = set(spec.get("prohibitions") or [])
     assert prohibitions <= known, f"의무 지도에 없는 금지 의무 id: {sorted(prohibitions - known)}"
 
-    from policyofficer.pack.loader import load_pack
-
-    krcore = {d for p in load_pack(PACK).policies for d in p.duties}
+    krcore = KRCORE
     raw, cache, rows, unmapped = lawmap / "raw", {}, [], []
     for d in duties:
         feature = assign(d, by_id, by_note)
