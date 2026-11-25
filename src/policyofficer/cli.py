@@ -293,11 +293,12 @@ def cmd_replay(args) -> int:
     if not args.speed > 0:
         raise ConfigError("--speed 는 0 보다 커야 합니다")
     from policyofficer.profile import load_duties
-    from policyofficer.review import with_tables
+    from policyofficer.review import with_highlights, with_tables
 
     duties = {d["id"]: d for d in load_duties()}
     for c in doc["checklist"]:
         with_tables(c, duties)  # 제재·조문 표기는 지금 표의 글로 다시 그린다(판정과 인용은 파일 그대로)
+    with_highlights(doc)  # 먼저 볼 것이 없는 옛 결과에도 같은 함수로
     begin, events = replay.timeline(doc)
     begin = dataclasses.replace(begin, repo=_replay_name(path, begin.commit))
     total = float(doc["run"].get("seconds") or 0.0)

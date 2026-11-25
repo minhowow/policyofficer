@@ -120,7 +120,8 @@ def test_the_summary_puts_heavier_sanctions_first_and_marks_prison_and_fines():
     doc = {"run": {"seconds": 10, "usd_estimate": 0.01, "questions": []}, "checklist": items}
     for cols in (None, 140, 80):
         out = render(doc, None, False, cols)
-        rows = [ln for ln in out.splitlines() if re.match(r"^(!!|  )[ \d]\d  ", ln)]
+        listed = out.split("먼저 볼")[0]  # 아래의 '먼저 볼 3건'은 목록의 번호를 다시 쓴다
+        rows = [ln for ln in listed.splitlines() if re.match(r"^(!!|  )[ \d]\d  ", ln)]
         assert [re.search(r"제(\d)조", r).group(1) for r in rows] == ["2", "3", "5", "1", "4", "6"]
         assert [r.startswith("!!") for r in rows] == [True, True, False, False, False, True]
         assert out.count(SANCTION_NOTE.split(".")[0]) == 1 and "어기면 · 징역 5년" in out

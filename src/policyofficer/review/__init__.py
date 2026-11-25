@@ -79,7 +79,7 @@ from policyofficer import __version__
 from policyofficer.discover import for_run, project_file_set, project_files
 from policyofficer.evidence import gate
 from policyofficer.judge.agent import MODELS, AgentAnswer, AgentJudge, RepoTools
-from policyofficer.profile import load_duties, load_features, load_sanctions, profile
+from policyofficer.profile import SANCTION_CLASSES, load_duties, load_features, load_sanctions, profile
 from policyofficer.review import events as E
 from policyofficer.review import prompts as P
 from policyofficer.roles import SERVICE, Role, classify
@@ -1057,6 +1057,55 @@ def with_sanction(item: dict) -> dict:
     return item
 
 
+HIGHLIGHTS = 3
+"""먼저 볼 것의 수(summary.highlights, 터미널 요약의 '먼저 볼 3건')."""
+
+
+def _model_cite(item: dict) -> dict | None:
+    """관문을 통과한 인용 가운데 모델이 댄 것(프로필 신호 why: profile 은 빼고) 하나."""
+    return next((c for c in item.get("citations") or [] if c.get("ok") and c.get("why") != "profile"), None)
+
+
+def highlights(checklist: list[dict]) -> list[dict]:
+    """먼저 볼 것(HIGHLIGHTS 건까지). 터미널 요약과 JSON(summary.highlights)이 같이 쓴다.
+
+    후보: '코드에서 본 것'이고, 품목 묶음이 아니고, 모델이 댄 인용이 관문을 통과한 항목. 순서: 반박을 견딘 것(upheld)
+    → 제재 등급 → 정액 상한이 큰 것 → 체크리스트 순서. 반박을 견딘 것을 앞에 두는 까닭: 독립 검수에서 '코드에서 본 것'
+    20건 중 맞은 것이 13건이었다. 기능마다 하나씩 먼저 고르고(같은 조문의 변주가 되지 않게), 모자라면 남은 후보에서
+    순서대로 채운다. 후보가 없으면 빈 목록이다. 건마다 {duty, file, line, text}(보일 인용 하나)."""
+
+    def key(c: dict) -> tuple:
+        s = c.get("sanction") or {}
+        heavy = SANCTION_CLASSES.index(s["class"]) if s.get("class") in SANCTION_CLASSES else len(SANCTION_CLASSES)
+        upheld = (c.get("verification") or {}).get("result") == "upheld"
+        return (not upheld, heavy, -(s.get("max_won") or 0), c.get("rank", 0))
+
+    cands = sorted(
+        (c for c in checklist if c.get("status") == "seen-in-code" and c.get("group") != "goods" and _model_cite(c)),
+        key=key,
+    )
+    picked: list[dict] = []
+    features: set = set()
+    for c in cands:
+        if c.get("feature") not in features and len(picked) < HIGHLIGHTS:
+            picked.append(c)
+            features.add(c.get("feature"))
+    picked += [c for c in cands if c not in picked][: HIGHLIGHTS - len(picked)]
+    out = []
+    for c in sorted(picked, key=key):
+        cite = _model_cite(c)
+        out.append({"duty": c["duty"], "file": cite["file"], "line": cite.get("line"), "text": cite.get("text", "")})
+    return out
+
+
+def with_highlights(doc: dict) -> dict:
+    """기록 재생: 먼저 볼 것이 없는 옛 결과에 같은 함수로 붙인다(제재를 붙이는 것과 같은 방식)."""
+    summary = doc.setdefault("summary", {})
+    if "highlights" not in summary:
+        summary["highlights"] = highlights(doc.get("checklist") or [])
+    return doc
+
+
 def with_tables(item: dict, duties: dict[str, dict] | None = None) -> dict:
     """기록 재생: 화면에 쓰는 글(제재, 조문 표기)을 지금의 표 값으로 덮어쓴다. 결과 파일에는 그때의 글이 남아 있어
     표를 고친 뒤(11/24: '시정명령을 어기면' → '시정명령 불이행 시', '시행령 시행령')에도 옛 글이 나왔다. 표에 없는
@@ -1443,6 +1492,7 @@ def _report(run: Run, prof, und, features, listed, checklist, seconds, throttles
                 for goods in [[c["duty"] for c in checklist if c.get("group") == "goods"]]
                 if goods
             ],
+            "highlights": highlights(checklist),
         },
         "profile": {
             "commit": commit_of(run.root),

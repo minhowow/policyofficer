@@ -14,11 +14,12 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from policyofficer.profile import SANCTION_CLASSES
 from policyofficer.report.progress import SGR, Glyphs, article, clean, clock, fit, fit_tail, pad, title, width, wrap
 from policyofficer.review.prompts import ORDER, STATUS_LABEL
 
 TO_CHECK = ("seen-in-code", "check-outside", "check-applicability")
-SANCTION_ORDER = ("징역", "과징금", "벌금", "과태료", "명령", "없음")
+SANCTION_ORDER = SANCTION_CLASSES
 """제재 등급(의무별 제재 표의 class)의 무거운 순서."""
 NOTE = "법률 자문이 아닙니다. 검토가 필요한 곳을 고를 뿐입니다."
 SANCTION_NOTE = "법에 적힌 최대 제재입니다. 위반 판정이 아니며, 실제 부과는 위반 사실과 규모에 따라 다릅니다."
@@ -130,6 +131,53 @@ def home(path: str | Path) -> str:
     return "~" + p[len(h) :] if p == h or p.startswith(h + os.sep) else p
 
 
+def _highlights(doc: dict, number: dict, add, lines: list, cols: int | None, g: Glyphs, dot: str) -> None:
+    """'먼저 볼 N건'(review.highlights). 건마다 법·조문·제목(목록과 같은 번호), 어기면 · 제재, 인용한 곳과 그 줄의
+    코드, 없는 것과 물어볼 것(자르지 않고 줄을 나눈다)."""
+    shown = (doc.get("summary") or {}).get("highlights")
+    if shown is None:
+        from policyofficer.review import highlights
+
+        shown = highlights(doc.get("checklist") or [])
+    by_duty = {c["duty"]: c for c in doc.get("checklist") or []}
+    shown = [h for h in shown if h.get("duty") in by_duty]
+    if not shown:
+        return
+    bar = "│" if g.dot == "·" else "|"
+    lead = "      "
+
+    def para(label: str, text: str, style: str | None) -> None:
+        body = f"{label}: {clean(text)}"
+        for line in wrap(body, cols - len(lead)) if cols is not None else [body]:
+            lines.append((lead + line, style))
+
+    add()
+    add(f"먼저 볼 {len(shown)}건", "bold")
+    for h in shown:
+        c = by_duty[h["duty"]]
+        sanction = c.get("sanction")
+        heavy = bool(sanction) and sanction.get("class") in HEAVY
+        k = number.get(c["duty"])
+        mark = ("!!" if heavy else "  ") + (f"{k:>2}" if k else "  ")
+        style = "heavy" if heavy else "bold"
+        add(
+            f"{mark}  {clean(law_short(c))} {article(c.get('article', ''))}{dot}{clean(title(c.get('title', '')))}",
+            style,
+        )
+        if sanction:
+            add(f"{lead}어기면{dot}{clean(sanction['label'])}", style)
+        where = f"{h['file']}:{h['line']}" if h.get("line") else h["file"]
+        add(clean(where), "dim", lead=lead)
+        code = (h.get("text") or "").strip().splitlines()
+        if code:
+            add(f"{lead}{bar} {clean(code[0].strip())}")
+        if c.get("missing"):
+            para("없는 것", str(c["missing"]), None)
+        if c.get("question"):
+            para("물어볼 것", str(c["question"]), "dim")
+    add()
+
+
 def render(doc: dict, saved: str | Path | None, color: bool, cols: int | None, unicode: bool = True) -> str:
     """`cols` 가 None 이면 줄을 자르지 않는다(stdout 이 터미널이 아닐 때)."""
     g = Glyphs(unicode)
@@ -169,13 +217,14 @@ def render(doc: dict, saved: str | Path | None, color: bool, cols: int | None, u
         if counts[s]:
             add(f"  {pad(STATUS_LABEL[s], label_w)}  {counts[s]:>3}", "bold" if s in TO_CHECK else None)
     todo = [c for c in checklist if c["status"] in TO_CHECK]
-    sections, n = [], 0
+    sections, n, number = [], 0, {}
     for s in TO_CHECK:
         items = sorted((c for c in todo if c["status"] == s and c.get("group") != "goods"), key=order_key)
         goods = [c for c in todo if c["status"] == s and c.get("group") == "goods"]
         rows = []
         for c in items:
             n += 1
+            number[c["duty"]] = n
             sanction = c.get("sanction")
             heavy = bool(sanction) and sanction.get("class") in HEAVY
             head = f"{'!!' if heavy else '  '}{n:>2}  {clean(law_short(c))} {article(c.get('article', ''))}{dot}"
@@ -206,6 +255,7 @@ def render(doc: dict, saved: str | Path | None, color: bool, cols: int | None, u
     add()
     if saved:
         add(home(saved), lead="전체 결과(JSON): ")
+    _highlights(doc, number, add, lines, cols, g, dot)
     checked = tool_check(doc, dot)
     if checked:
         # 좁으면 ' · ' 사이에서 나누고 이어지는 줄은 첫 조각 밑에 맞춘다

@@ -247,7 +247,9 @@ def test_the_tool_check_names_why_it_refused_and_sits_right_above_the_notes():
     for cols in (None, 140, 80):
         out = render(_doc(cites, searches), "/tmp/x.json", False, cols).splitlines()
         at = next(i for i, ln in enumerate(out) if ln.startswith("도구 대조 · "))
-        assert out[at - 1].startswith("전체 결과(JSON): ")
+        saved = next(i for i, ln in enumerate(out) if ln.startswith("전체 결과(JSON): "))
+        first = next(i for i, ln in enumerate(out) if ln.startswith("먼저 볼 "))
+        assert saved < first < at and out[at - 1] == ""  # 결과 경로 → 먼저 볼 것 → 도구 대조 → 각주
         notes = SANCTION_NOTE[:10]
         nxt = next(i for i, ln in enumerate(out) if ln.startswith(notes))
         assert "".join(ln.strip() for ln in out[at:nxt]).count("근거로 안 씀") == 1  # 자르지 않고 나눴다

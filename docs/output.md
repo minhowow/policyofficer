@@ -100,13 +100,20 @@
 
 | 키 | 뜻 |
 |---|---|
-| `summary` | 체크리스트의 갈래별 수(`counts`), 갈래 이름(`labels`), 맨 위 다섯 건의 의무 id(`top`), 한 줄로 묶어 보일 항목(`groups`: 품목 신호가 없어 묻지 않은 품목 의무, `id` goods) |
+| `summary` | 체크리스트의 갈래별 수(`counts`), 갈래 이름(`labels`), 맨 위 다섯 건의 의무 id(`top`), 한 줄로 묶어 보일 항목(`groups`: 품목 신호가 없어 묻지 않은 품목 의무, `id` goods), 먼저 볼 것(`highlights`, 11/25 덧붙임, 아래) |
 | `profile` | 커밋(`commit`), 플랫폼(`platforms`: web·mobile·server, 출처 `platforms_from`: signal 은 package.json, model 은 package.json 으로 가르지 못해 이해 단계가 인용과 함께 적은 것 `platform_evidence`), 서비스 요약, 기능(`sources`: signal·model, 모델이 더한 근거 `model_citations`, 인용과 함께 뺀 것은 `removed`. 11/25 전의 결과에는 static 도 있다), 품목 신호(`goods`) |
 | `data_flow` | 개인정보 흐름. `nodes[]`(input·server·store·external, 다루는 항목 `data`, 인용) 와 `edges[]`(from→to). 인용이 관문을 통과한 것만 |
 | `obligations.listed[]` | 목록 층: 감지된 기능과 거의 모든 서비스에 걸릴 수 있는 의무. `in_checklist` 는 검토 층에 들었는지 |
 | `checklist[]` | 검토 층. 이미 갈래 순으로 늘어서 있고 `rank` 가 1 부터다. 의무마다 `status`·`status_label`, 인용 `citations`, 부재를 보인 검색 `searches`, 개발자에게 물을 `question`, 조사 모델의 첫 답 `first`, 반박 `verification`(upheld · overturned · overturn-ungrounded · not-run, 조문 밖 요건이었는지 `off_quote`), 어기면 법에 적힌 최대 제재 `sanction`(11/24 덧붙임, 아래), 조건은 있는데 없는 지킨 처리 `missing`(예: "약관 고지 화면이 없음"), 묻지 않은 품목 의무의 묶음 `group`(goods) |
 | `first`·`verification` 의 덧붙임(11/12) | 답이 적은 걸리는 조건 `applies`(예·아니오·모름)·`condition`, 없는 것 `missing`, 충족 인용의 성격 `shows`(행위·이름·기본값), 관문이 답을 바꾼 까닭 `gate`(`why`: condition-present · no-condition · name-or-default · audience · missing-check · applies-unknown · free-input · other-side · prohibition · same-model, `note` 는 `reason` 앞에도 붙는다). '해당 없음'의 근거 `basis`(처리 없음·확인 장치 없음, 같은 날 덧붙임). 걸리는 조건을 본 곳 `trigger`(입력란·처리·저장 · 자유 입력 추측, 11/13 덧붙임). `shows` 의 `금지 행위` 는 금지 의무(의무 표의 `prohibition`)에서 금지된 행위 자체를, `빈틈` 은 '코드에서 본 것'의 인용이 빈틈 자체(상수로 고정된 로그인 검사, 평문 저장 등)를 보인다는 표시다. 반박의 뒤집기는 자유 입력 관문이 옮긴 항목이면 그 정보를 받는 입력란·필드·저장의 인용(applies 예)이, 금지 의무면 금지 행위의 인용이 있어야 받고, 조사와 반박이 같은 모델이면 '충족'으로 올리는 뒤집기는 받지 않는다(`gate` same-model). '충족'이라 답할 때 적는 남은 부족한 점 `remaining`(없으면 '없음', 11/15 덧붙임)이 있으면 '코드에서 본 것'이다(`gate` remaining-gap). '금지 행위'·'빈틈' 표시는 관문을 통과한 인용이 있을 때만 받는다. 인용의 `why` 가 `profile` 이면 모델의 인용이 아니라 기능이 있다는 프로필 신호(걸리는 조건의 근거)다. `config-value` 면 설정 파일의 줄이지만 주소·호스트 값이 있어 받은 인용이다 |
 | `run` | 모델, 반박을 물었는지(`rebut`, false 면 `models.verify` 는 none 이고 반박할 항목은 not-run why rebut-off), 반박할 항목(`rebut_scope`: all · found, found 면 나머지는 not-run why rebut-scope), 묶음(`batch`: duty · feature · bundle), 저장소에 없는 쪽(`lacks`: screen 이면 서버만, server 면 화면만), 상한, 시간, 호출 수, 사용량, 어림 금액(공식 단가를 호출마다 매겨 더한 값), 상태·반박 결과별 수, 인용과 관문이 거절한 수, 검색과 다시 돌려 맞지 않은 수, 못 물은 의무(`not_asked`), 가린 비밀값, 읽지 않은 비밀 파일, 질문마다의 기록 |
+
+`highlights`(11/25): 먼저 볼 것 세 건까지. 건마다 `{"duty", "file", "line", "text"}`(의무 id 와 보일 인용 하나)이다. 후보는
+'코드에서 본 것'이고 품목 묶음이 아니고 모델이 댄 인용(`why` 가 profile 이 아닌 것)이 관문을 통과한 항목이다. 반박을 견딘
+것(`verification.result` upheld) → 제재 등급 → 정액 상한 → 체크리스트 순서로 늘어놓고, 기능마다 하나씩 먼저 고른 뒤 모자라면
+남은 후보로 채운다. 후보가 없으면 빈 목록이다. 터미널 요약은 같은 함수(review.highlights)로 각주 위에 '먼저 볼 N건'을 보이고,
+`replay` 는 이 키가 없는 옛 결과에도 붙인다. 예(jobtalk):
+`{"duty": "pipa-28-8-1", "file": "backend/src/controllers/chatController.ts", "line": 135, "text": "const response = await openai.responses.create({"}`.
 
 `sanction`(11/24): 의무별 제재 표(`src/policyofficer/profile/sanctions.jsonl`, AI 검토가 묻는 의무 220개와 1:1)의 레코드에서
 `duty` 를 뺀 것이다. 등급 `class` 는 무거운 순서로 징역 > 과징금 > 벌금 > 과태료 > 명령(시정명령 등을 어겨야 제재) >
