@@ -378,7 +378,7 @@ class State:
             return f"기능 {d.get('features', 0)}개" + (f"{sep}{plats}" if plats else "")
         if stage == "understand":
             if state == "start":
-                return "저장소를 읽는 중"
+                return "폴더를 읽는 중"
             if not d.get("answered"):
                 return "답을 받지 못함"
             return understood(d, sep)

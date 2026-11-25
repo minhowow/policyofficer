@@ -14,8 +14,8 @@
 
 ```bash
 uv tool install git+https://github.com/minhowow/policyofficer
-policyofficer review <폴더>        # 터미널이면 요약, 파이프면 JSON. 기본 상한 $5 · 6분
-policyofficer replay <결과.json>   # 저장한 결과를 다시 그린다(모델 호출 없음)
+cd <프로젝트 폴더> && policyofficer   # 이 폴더를 검토한다. 터미널이면 요약, 파이프면 JSON. 기본 상한 $2 · 6분
+policyofficer replay <결과.json>     # 저장한 결과를 다시 그린다(모델 호출 없음)
 ```
 
 **어떻게 동작하나** — 기능 파악 → 의무 고르기 → 의무별 조사 → 반박 → 직접 대조 → 체크리스트
@@ -60,19 +60,22 @@ uv tool install git+https://github.com/minhowow/policyofficer   # 또는 클론�
 
 ```bash
 export ANTHROPIC_API_KEY=...
-policyofficer review <폴더>                     # 체크리스트. 터미널이면 요약, 파이프면 JSON
-policyofficer review <폴더> --plan              # 모델 호출 없이 물을 의무 수와 질문 수만 센다
-policyofficer review <폴더> --no-rebut --max-usd 1
-policyofficer review <폴더> --batch bundle       # 같은 코드 범위의 의무를 묶어 물어 비용을 줄인다
-policyofficer replay <결과.json> --speed 4      # 저장한 결과를 다시 그린다(모델·네트워크 호출 없음)
-policyofficer profile <폴더>                    # 알아본 기능과 걸릴 수 있는 의무(JSON, 모델 호출 없음)
+policyofficer <폴더>                       # 체크리스트. 터미널이면 요약, 파이프면 JSON (폴더를 빼면 지금 폴더)
+policyofficer <폴더> --plan                # 모델 호출 없이 물을 의무 수와 질문 수만 센다
+policyofficer <폴더> --no-rebut --max-usd 1
+policyofficer review <폴더>                # 같은 검토를 웹 실행기의 기본값으로(--batch duty --rebut-scope all --max-usd 5)
+policyofficer replay <결과.json> --speed 4 # 저장한 결과를 다시 그린다(모델·네트워크 호출 없음)
+policyofficer profile <폴더>               # 알아본 기능과 걸릴 수 있는 의무(JSON, 모델 호출 없음)
 ```
 
 - **결과**: stdout 이 터미널이면 요약(갈래별 수, 확인할 것의 법·조문·인용·제재, 도구 대조, 주의 문구)을 내고 전체
   JSON 은 `${XDG_CACHE_HOME:-~/.cache}/policyofficer/reviews/<폴더>-<커밋 12자>.json` 에 둔다. 검토하는 폴더에는
   쓰지 않는다. 파이프·파일이면 JSON 을 낸다. `-o FILE` 은 JSON 을 그 파일에도 쓰고, `--json` 은 터미널이어도 JSON 이다.
   키와 값은 [docs/output.md](docs/output.md) 에 있다.
-- **상한**: 한 번의 어림 금액(`--max-usd`, 기본 5)과 시간(`--time-limit`, 기본 360초). 상한에 걸려 묻지 못한 의무는
+- **한 줄 명령과 review**: `policyofficer <폴더>` 는 `policyofficer review <폴더>` 와 같은 검토이고 기본값 셋만 다르다
+  (`--batch bundle` 같은 코드 범위의 의무를 묶어 묻기, `--rebut-scope found` '코드에서 본 것'·'충족'만 반박,
+  `--max-usd 2`). 명령과 같은 이름의 폴더는 `./review` 처럼 준다.
+- **상한**: 한 번의 어림 금액(`--max-usd`, 한 줄 명령 2 · review 5)과 시간(`--time-limit`, 기본 360초). 상한에 걸려 묻지 못한 의무는
   '모름'으로 싣고 까닭을 적는다. 모델은 `--model`(조사, 기본 claude-haiku-5-5)과 `--checker`(반박, 기본
   claude-sonnet-5-5)로 고른다.
 - **진행 화면**은 stderr 에 그린다(`--progress auto|tty|plain|none`). 터미널이면 제자리에서 다시 그리고, CI·파이프·
@@ -114,7 +117,7 @@ policyofficer profile <폴더>                    # 알아본 기능과 걸릴 �
 **JS·TS 가 아닌 저장소도 되나요?** 됩니다. 기능 신호(꾸러미·import·경로)는 JS·TS 만 보지만, 기능 파악 단계에서 AI 가
 코드를 읽고 기능을 더하고, 의무별 조사도 언어를 가리지 않고 읽습니다.
 
-**키 없이 볼 수 있는 것이 있나요?** `policyofficer review <폴더> --plan` 은 모델을 부르지 않고 알아본 기능과 물을
+**키 없이 볼 수 있는 것이 있나요?** `policyofficer <폴더> --plan` 은 모델을 부르지 않고 알아본 기능과 물을
 의무·질문 수를 셉니다. `policyofficer profile <폴더>` 는 기능과 걸릴 수 있는 의무를 JSON 으로 냅니다.
 
 ## 라이선스

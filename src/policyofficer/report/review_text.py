@@ -35,14 +35,14 @@ CITE_WHY = {
     "trailing-comment": "줄 끝 주석",
     "bare-word": "낱말 하나",
     "empty": "빈 인용",
-    "outside-repo": "저장소 밖",
+    "outside-repo": "프로젝트 밖",
     "not-entry-file": "다른 파일",
 }
 """관문이 인용을 받지 않은 까닭(why)의 이름."""
 SEARCH_WHY = {
     "mismatch": ("달라", "결과가 다름"),
     "bad-pattern": ("검색식이 틀려", "검색식 오류"),
-    "outside-repo": ("저장소 밖이라", "저장소 밖"),
+    "outside-repo": ("폴더 밖이라", "폴더 밖"),
     "no-count": ("수를 대지 않아", "수 없음"),
 }
 """'없다' 검색을 근거로 쓰지 않은 까닭(why): (까닭이 하나일 때의 말, 여럿일 때의 이름)."""

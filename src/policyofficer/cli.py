@@ -1,4 +1,5 @@
-"""명령줄 진입점.
+"""명령줄 진입점. `policyofficer [폴더]` 는 그 폴더를 검토하고(review 와 같고 기본값 셋이 다르다), 첫 인자가 명령
+이름이면 그 명령이다(profile · review · replay).
 
 종료 코드: 0 끝까지 돌았다 · 2 도구 오류(폴더가 없음, 인자가 잘못됨, 키가 없음 등) · 130 Ctrl+C.
 """
@@ -25,67 +26,97 @@ class _Parser(argparse.ArgumentParser):
         self.exit(EXIT_ERROR, f"오류: {message}\n")
 
 
+QUICK = {"batch": "bundle", "rebut_scope": "found", "max_usd": 2.0}
+"""한 줄 명령(`policyofficer [폴더]`)에서만 다른 기본값. 11/24 jobtalk 실제 실행(haiku 조사 + sonnet 반박, 묶음·found)이
+155초, $0.47 이었다. `policyofficer review` 의 기본값은 그대로다(웹 실행기가 쓴다)."""
+
+USAGE = "policyofficer [폴더] [옵션]\n       policyofficer <명령> ..."
+DESCRIPTION = """폴더의 코드를 AI 가 읽어, 걸릴 수 있는 국내 법 의무마다 근거(파일:줄)와 법에 적힌 제재를 낸다.
+
+  policyofficer [폴더]   폴더를 검토한다(기본: 지금 폴더). 터미널이면 요약, 파이프면 JSON.
+                         review 의 옵션을 받고 기본값만 다르다: --batch bundle · --rebut-scope found · --max-usd 2
+                         옵션 보기: policyofficer . -h"""
+
+
 def build_parser() -> argparse.ArgumentParser:
-    p = _Parser(prog="policyofficer", description="국내 법·정책 관점 코드 검토")
+    p = _Parser(
+        prog="policyofficer", usage=USAGE, description=DESCRIPTION, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     p.add_argument("--version", action="version", version=f"policyofficer {__version__}")
-    sub = p.add_subparsers(dest="command", metavar="<명령>", parser_class=_Parser)
+    sub = p.add_subparsers(dest="command", metavar="<명령>", title="명령", parser_class=_Parser)
 
     pr = sub.add_parser(
-        "profile", help="저장소가 하는 일(기능)과 그 기능에 걸릴 수 있는 의무를 JSON 으로 낸다 (모델 호출 0회)"
+        "profile", help="폴더가 하는 일(기능)과 그 기능에 걸릴 수 있는 의무를 JSON 으로 낸다(모델 호출 0회)"
     )
-    pr.add_argument("path", help="저장소 폴더")
+    pr.add_argument("path", help="폴더")
 
     rv = sub.add_parser(
         "review",
-        help="저장소를 읽어 서비스·개인정보 흐름·걸리는 의무를 정리하고, 의무마다 근거를 찾아 체크리스트를 낸다(JSON)",
+        help="폴더의 코드를 읽어 의무마다 근거를 찾아 체크리스트를 낸다(한 줄 명령과 같고 기본값이 다르다)",
     )
-    rv.add_argument("path", help="저장소 폴더")
-    rv.add_argument("--model", default="anthropic:claude-haiku-5-5", help="이해·근거 찾기 모델")
-    rv.add_argument("--checker", default="anthropic:claude-sonnet-5-5", help="반박 검증 모델(다른 모델을 쓴다)")
-    rv.add_argument(
-        "--no-rebut", action="store_true", help="반박 검증을 묻지 않는다(결과의 run.rebut 이 false, 비용이 약 절반)"
-    )
-    rv.add_argument(
-        "--rebut-scope",
-        default="all",
-        choices=["all", "found"],
-        help="반박할 항목. all(기본): 코드에서 본 것·저장소 밖·충족·해당 없음·걸리지 않는 듯, "
-        "found: 코드에서 본 것·충족 근거 있음만(나머지는 verification not-run, why rebut-scope)",
-    )
-    rv.add_argument(
-        "--batch",
-        default="duty",
-        choices=["duty", "feature", "bundle"],
-        help="질문 하나에 의무 하나(기본), 기능 하나(의무 8개까지), 또는 표의 묶음(같은 기능·같은 코드 범위를 보는 "
-        "의무 "
-        "4개까지, 답과 관문은 의무마다). 11/11 실측: duty 가 feature 보다 인용이 많고 비용은 1.8배",
-    )
-    rv.add_argument("--max-usd", type=float, default=5.0, help="저장소 한 번의 어림 금액 상한(공식 단가, 기본 5)")
-    rv.add_argument("--time-limit", type=float, default=360.0, help="저장소 한 번의 시간 상한(초, 기본 360)")
-    rv.add_argument("--concurrency", type=int, default=6, help="동시에 묻는 질문 수(429 를 받으면 줄인다, 기본 6)")
-    rv.add_argument("--plan", action="store_true", help="모델을 부르지 않고 물을 의무와 질문 수만 낸다")
-    rv.add_argument(
-        "--reuse",
-        default=None,
-        metavar="REVIEW_JSON",
-        help="같은 저장소·커밋의 앞 review 결과. 이해 단계(서비스 요약·기능·개인정보 흐름)를 묻지 않고 그대로 쓴다",
-    )
-    _progress_args(rv)
-    rv.add_argument(
-        "-o",
-        "--output",
-        default=None,
-        metavar="FILE",
-        help="결과 JSON 을 이 파일에도 쓴다. 기본: stdout 이 터미널이면 "
-        "${XDG_CACHE_HOME:-~/.cache}/policyofficer/reviews/<저장소>-<커밋 12자>.json, 아니면 쓰지 않는다",
-    )
-    rv.add_argument("--json", action="store_true", help="stdout 이 터미널이어도 요약 대신 JSON 을 낸다")
+    _review_args(rv, quick=False)
 
     rp = sub.add_parser("replay", help="저장된 review 결과로 진행 화면을 다시 그린다(모델·네트워크 호출 0회)")
     rp.add_argument("file", help="review 결과 JSON")
     rp.add_argument("--speed", type=float, default=4.0, help="원래보다 몇 배 빠르게(기본 4)")
     _progress_args(rp)
     return p
+
+
+def quick_parser() -> argparse.ArgumentParser:
+    q = _Parser(prog="policyofficer", usage="policyofficer [폴더] [옵션]", description=DESCRIPTION.split("\n")[0])
+    _review_args(q, quick=True)
+    return q
+
+
+def _review_args(p: argparse.ArgumentParser, quick: bool) -> None:
+    """review 의 인자. 한 줄 명령(`quick`)은 폴더를 빼도 되고(지금 폴더) 기본값 셋이 다르다(QUICK)."""
+    if quick:
+        p.add_argument("path", nargs="?", default=".", help="검토할 폴더(기본: 지금 폴더)")
+    else:
+        p.add_argument("path", help="검토할 폴더")
+    batch = QUICK["batch"] if quick else "duty"
+    scope = QUICK["rebut_scope"] if quick else "all"
+    usd = QUICK["max_usd"] if quick else 5.0
+    p.add_argument("--model", default="anthropic:claude-haiku-5-5", help="기능 파악·의무별 조사 모델")
+    p.add_argument("--checker", default="anthropic:claude-sonnet-5-5", help="반박 모델(다른 모델을 쓴다)")
+    p.add_argument(
+        "--no-rebut", action="store_true", help="반박을 묻지 않는다(결과의 run.rebut 이 false, 비용이 약 절반)"
+    )
+    p.add_argument(
+        "--rebut-scope",
+        default=scope,
+        choices=["all", "found"],
+        help=f"반박할 항목(기본 {scope}). all: 코드에서 본 것·저장소 밖·충족·해당 없음·걸리지 않는 듯, "
+        "found: 코드에서 본 것·충족 근거 있음만(나머지는 verification not-run, why rebut-scope)",
+    )
+    p.add_argument(
+        "--batch",
+        default=batch,
+        choices=["duty", "feature", "bundle"],
+        help=f"질문 하나에 넣는 의무(기본 {batch}). duty: 하나, feature: 기능 하나(8개까지), bundle: 표의 묶음(같은 "
+        "기능·같은 코드 범위를 보는 의무 4개까지). 답과 관문은 어느 쪽이든 의무마다다",
+    )
+    p.add_argument("--max-usd", type=float, default=usd, help=f"한 번의 어림 금액 상한(공식 단가, 기본 {usd:g})")
+    p.add_argument("--time-limit", type=float, default=360.0, help="한 번의 시간 상한(초, 기본 360)")
+    p.add_argument("--concurrency", type=int, default=6, help="동시에 묻는 질문 수(429 를 받으면 줄인다, 기본 6)")
+    p.add_argument("--plan", action="store_true", help="모델을 부르지 않고 물을 의무와 질문 수만 낸다")
+    p.add_argument(
+        "--reuse",
+        default=None,
+        metavar="REVIEW_JSON",
+        help="같은 폴더·커밋의 앞 review 결과. 기능 파악(서비스 요약·기능·개인정보 흐름)을 묻지 않고 그대로 쓴다",
+    )
+    _progress_args(p)
+    p.add_argument(
+        "-o",
+        "--output",
+        default=None,
+        metavar="FILE",
+        help="결과 JSON 을 이 파일에도 쓴다. 기본: stdout 이 터미널이면 "
+        "${XDG_CACHE_HOME:-~/.cache}/policyofficer/reviews/<폴더>-<커밋 12자>.json, 아니면 쓰지 않는다",
+    )
+    p.add_argument("--json", action="store_true", help="stdout 이 터미널이어도 요약 대신 JSON 을 낸다")
 
 
 def _progress_args(p: argparse.ArgumentParser) -> None:
@@ -117,12 +148,19 @@ def _redact(value: str) -> str:
 # ── profile · review · replay ──────────────────────────────────────────────
 
 
+def _folder(path: str) -> Path:
+    root = Path(path)
+    if root.is_dir():
+        return root
+    if root.exists():
+        raise ConfigError(f"폴더를 주세요. {path} 는 파일입니다(파일 하나는 검토하지 않습니다)")
+    raise ConfigError(f"폴더가 없습니다: {path}")
+
+
 def cmd_profile(args) -> int:
     from policyofficer.profile import profile
 
-    root = Path(args.path)
-    if not root.is_dir():
-        raise ConfigError(f"폴더가 아닙니다: {args.path}")
+    root = _folder(args.path)
     print(json.dumps(profile(root.resolve()), ensure_ascii=False, indent=2))
     return EXIT_OK
 
@@ -130,9 +168,7 @@ def cmd_profile(args) -> int:
 def cmd_review(args) -> int:
     from policyofficer import review as rv
 
-    root = Path(args.path)
-    if not root.is_dir():
-        raise ConfigError(f"폴더가 아닙니다: {args.path}")
+    root = _folder(args.path)
     if args.plan:
         print(json.dumps(rv.plan(root), ensure_ascii=False, indent=2))
         return EXIT_OK
@@ -143,7 +179,8 @@ def cmd_review(args) -> int:
         investigator = rv.build_judge(args.model, throttles[0])
         checker = investigator if args.no_rebut else rv.build_judge(args.checker, throttles[1])
     except ValueError as e:
-        raise ConfigError(str(e)) from e
+        hint = "(키 없이는 --plan 으로 물을 의무와 질문 수를 볼 수 있습니다)" if "ANTHROPIC_API_KEY" in str(e) else ""
+        raise ConfigError(f"{e}{hint}") from e
     from policyofficer.judge.http import endpoint
     from policyofficer.report import progress
     from policyofficer.review.events import Begin
@@ -214,7 +251,7 @@ def cmd_review(args) -> int:
 
 
 def _review_path(root: Path, doc: dict) -> Path:
-    """터미널에서 돌린 review 의 결과를 둘 곳. 분석하는 저장소 안에는 파일을 만들지 않는다."""
+    """터미널에서 돌린 review 의 결과를 둘 곳. 검토하는 폴더 안에는 파일을 만들지 않는다."""
     commit = (doc.get("profile") or {}).get("commit")
     tag = commit[:12] if commit else time.strftime("%Y%m%d-%H%M%S")
     cache = os.environ.get("XDG_CACHE_HOME") or str(Path.home() / ".cache")
@@ -323,13 +360,25 @@ def main(argv: list[str] | None = None) -> int:
             signal.signal(signal.SIGTERM, previous)
 
 
+def _quick_args(argv: list[str]) -> argparse.Namespace:
+    """`policyofficer [폴더] [옵션]`. 첫 인자가 옵션이 아니면 폴더여야 한다(같은 이름의 폴더는 `./review` 처럼 준다)."""
+    first = argv[0] if argv and not argv[0].startswith("-") else None
+    if first is not None and not Path(first).exists():
+        raise ConfigError(f"{first}: 명령도 폴더도 아닙니다(명령: {' · '.join(COMMANDS)}). 폴더라면 경로를 확인하세요")
+    args = quick_parser().parse_args(argv)
+    args.command = "review"
+    return args
+
+
 def _main(argv: list[str] | None) -> int:
-    parser = build_parser()
-    args = parser.parse_args(argv)
-    if args.command is None:
-        parser.print_help()
-        return EXIT_ERROR
+    argv = list(sys.argv[1:] if argv is None else argv)
     try:
+        if argv and (argv[0] in COMMANDS or argv[0] in ("-h", "--help", "--version")):
+            args = build_parser().parse_args(argv)
+            if args.command is None:
+                return EXIT_ERROR
+        else:
+            args = _quick_args(argv)
         return COMMANDS[args.command](args)
     except PolicyofficerError as e:
         print(f"오류: {e}", file=sys.stderr)

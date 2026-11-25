@@ -72,6 +72,9 @@
 
 ## 저장소 검토(`policyofficer review <폴더>`, 11/11 부터)
 
+한 줄 명령 `policyofficer [폴더]`(11/25)는 같은 검토이고 같은 JSON 을 낸다. 기본값 셋만 다르다(`--batch bundle`,
+`--rebut-scope found`, `--max-usd 2`). 웹 실행기는 `policyofficer review` 를 그대로 쓴다.
+
 스키마는 [`schemas/review-2.json`](../schemas/review-2.json), `review_version` 은 2 다(1 에서 '확인할 것'을 세 갈래로 나누고
 부재 증명을 더해 판을 올렸다. 키를 더할 때는 그대로).
 조사 모델(`--model`, 기본 haiku)이 저장소를 읽고, 다른 모델(`--checker`, 기본 sonnet)이 반박한다. 질문은 기본으로
