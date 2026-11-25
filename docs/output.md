@@ -1,111 +1,59 @@
-# 출력 계약 — scan 의 JSON 보고서
+# 출력 계약 — review·profile 의 JSON
 
-웹 서비스(`policyofficer-web`)와 CI 가 읽는 `policyofficer scan --output-format json` 의 약속이다. SARIF·GitLab Code
-Quality(`--output-format gitlab`)는 그 형식의 규격을 따르고, 지문은 셋이 같은 값이다.
-스키마는 [`schemas/report-1.json`](../schemas/report-1.json)(JSON Schema 2020-12)이고, `tests/test_report_schema.py` 가
-실제 보고서(판정자 없음, 판정자가 푼 것·뺀 것, 에이전트 세 방식, 서비스에 닿지 못한 에이전트)로 검사한다.
+웹 서비스(`policyofficer-web`)가 읽는 `policyofficer review`·`policyofficer profile` 의 약속이다. review 의 스키마는
+[`schemas/review-2.json`](../schemas/review-2.json)(JSON Schema 2020-12, 손으로 쓴다)이고, `tests/test_review.py` 가 가짜
+답으로 끝까지 돌린 결과로 검사한다.
 
 ## 웹이 고정할 판
 
-- 11주 인계: 태그 `handoff-w11`(원격 `origin` 의 가지 `interim-report-f1-evaluation`). 이 문서와 스키마가 그 판의 계약이다.
-- 11주 두 번째 인계(11/11): 태그 `handoff-w11-2`(가지 `main`). 발견마다 파일 역할을 싣고(아래), 배열·라우터의 `push`
-  를 광고 발송으로 세지 않는다. `handoff-w11` 에 키를 더하기만 했다.
-- 13주에 도구 판 태그(`v0.4.0`)를 따로 단다. 그 전까지 웹은 `handoff-w11-2` 를 고정한다.
-- 13주 세 번째 인계(11/24): 태그 `handoff-w13-3`. 제품 이름이 바뀌었다(아래 '이름 바꾸기').
+- 11/24: 태그 `handoff-w13-3`. 제품 이름이 policypack 에서 policyofficer 로 바뀌었다(아래 '이름 바꾸기').
+- 11/25: 태그 `handoff-w13-4`. scan 과 정책 팩을 걷어 냈다(아래 '걷어 낸 것').
+
+## 걷어 낸 것 (`handoff-w13-4`, 2026-11-25)
+
+오너 지시로 제품을 review 하나로 줄였다. 되돌릴 자리는 태그 `static-final` 이다. 웹이 맞출 것:
+
+- **명령**: `scan`·`validate`·`test`·`schema`·`doctor`·`hook` 이 없다. 남은 명령은 `profile`·`review`·`replay` 다.
+  `review` 의 `--no-static` 도 없다(웹 실행기는 넘기지 않았다). `review`·`profile` 의 다른 인자와 기본값은 그대로다.
+- **review JSON**: `checklist[].static`·`checklist[].krcore`·`run.static` 을 내지 않는다. `profile.features[].sources` 에
+  `static` 이 나오지 않는다. 그 밖의 키와 값은 그대로이고, 가짜 판정자로 견주면 이 키들 말고는 바이트까지 같다.
+  `review_version` 은 2 그대로다(웹이 2 만 받으므로). `schemas/review-2.json` 은 셋을 선택 키로 바꿔 옛 결과도
+  통과한다. 웹의 스키마 사본이 셋을 필수로 두었다면 빼야 한다.
+- **review --plan JSON**: `static_error` 가 없다.
+- **진행 화면·기록 재생**: '정적 규칙' 단계가 없다(단계 다섯). plain 기록에도 그 줄이 없다.
+- **저장소의 파일**: `policies/kr-core/`(정책 팩·조문 원문·픽스처), `schemas/policy-pack-0.4.json`·
+  `schemas/policy-test-0.1.json`·`schemas/report-1.json`, `.pre-commit-hooks.yaml`, `examples/` 가 없다. 웹의 pack-meta
+  내보내기와 의무 지도 내보내기가 `policies/kr-core/pack.yaml` 을 읽었다면 더는 읽을 곳이 없다. 의무 표
+  (`src/policyofficer/profile/duties.jsonl`)의 `krcore` 칸은 그대로 두었다(묻는 의무 220개 = `review_candidate` 218개
+  + `krcore` 이면서 후보가 아닌 2개).
+- **설치**: 실행 의존성이 ruamel.yaml 하나다(Semgrep·pydantic 을 뺐다). 설치가 훨씬 가볍다.
 
 ## 이름 바꾸기 (`handoff-w13-3`, 2026-11-24)
 
 제품 이름을 policypack 에서 policyofficer 로 바꿨다(오너 결정). 옛 이름의 별칭(옛 명령·옛 값)은 두지 않는다.
-키 이름은 그대로이고 값만 바뀌었다. SARIF 의 `partialFingerprints` 만 키가 바뀌는데, 그 키가 지문 방식의 이름이라서다.
+남은 명령에 해당하는 것만 적는다(scan 의 값은 위에서 걷어 냈다).
 
 | 무엇 | 전 | 후 |
 |---|---|---|
 | 설치 이름(배포 이름) | `policypack` | `policyofficer` (예: `policyofficer @ git+https://github.com/minhowow/policyofficer@<커밋>`) |
 | 명령 | `policypack <명령>` | `policyofficer <명령>`. `--version` 의 첫 낱말도 `policyofficer` |
-| scan·profile·review·test 의 JSON `tool.name` | `"policypack"` | `"policyofficer"` |
-| scan JSON `run.fingerprint_version` | `"policypack/v1"` | `"policyofficer/v1"` |
-| SARIF `runs[].tool.driver.name` | `"policypack"` | `"policyofficer"` |
-| SARIF `rules[].properties.tags` 의 첫 값 | `"policypack"` | `"policyofficer"` |
-| SARIF `results[].partialFingerprints` 의 키 | `"policypack/v1"` | `"policyofficer/v1"` |
-| SARIF 알림 `toolExecutionNotifications[].descriptor.id` | `policypack/unparsed`·`policypack/skipped`·`policypack/engine-incomplete`·`policypack/engine-error`·`policypack/ai-pending` | 앞만 `policyofficer/` 로(뒤는 같다) |
-| 결과 스키마의 `$id` | `https://github.com/plitsoft/policypack/schemas/report-1.json`, `https://policypack.dev/schemas/review-2.json` | `https://github.com/minhowow/policyofficer/schemas/report-1.json`, `https://github.com/minhowow/policyofficer/schemas/review-2.json` |
-| 결과 스키마 `tool.name` 의 `const` | `"policypack"` | `"policyofficer"` |
-| 환경 변수 | `POLICYPACK_PACK`·`POLICYPACK_SEMGREP`·`POLICYPACK_SEMGREP_TIMEOUT`·`POLICYPACK_CLAUDE_BIN` | `POLICYOFFICER_PACK`·`POLICYOFFICER_SEMGREP`·`POLICYOFFICER_SEMGREP_TIMEOUT`·`POLICYOFFICER_CLAUDE_BIN`(옛 이름은 읽지 않는다) |
-| 팩 파일 `apiVersion`(웹의 `pack-meta` 가 옮기는 값) | `policypack/v0.4` | `policyofficer/v0.4`(팩 문법은 그대로. 옛 값은 거절한다) |
-| 정책 테스트 파일 `apiVersion` | `policypack/test-0.1` | `policyofficer/test-0.1` |
+| profile·review 의 JSON `tool.name` | `"policypack"` | `"policyofficer"` |
+| review 스키마의 `$id` | `https://policypack.dev/schemas/review-2.json` | `https://github.com/minhowow/policyofficer/schemas/review-2.json` |
+| review 스키마 `tool.name` 의 `const` | `"policypack"` | `"policyofficer"` |
 | review 결과를 두는 곳(stdout 이 터미널일 때) | `${XDG_CACHE_HOME:-~/.cache}/policypack/reviews/` | `${XDG_CACHE_HOME:-~/.cache}/policyofficer/reviews/` |
 | 소스 안의 표 경로 | `src/policypack/profile/{duties.jsonl,features.yaml,sanctions.jsonl}` | `src/policyofficer/profile/…` |
 
-- **지문 값은 모두 바뀐다.** 지문(`findings[].fingerprint`, SARIF `partialFingerprints`, GitLab `fingerprint`)은 방식
-  이름과 팩 파일의 해시(`run.pack` 의 digest)를 넣어 만든다. 둘 다 바뀌었으므로 이 판 앞뒤의 지문은 서로 견주지 않는다.
-- GitLab Code Quality 보고서에는 도구 이름이 없다(`check_name` 은 `<정책>/<규칙>`). 지문 값만 바뀐다.
-
 ## 판 올리기
 
-- `schema_version` 은 지금 1 이다. 있던 키가 없어지거나 뜻이 바뀌면 올린다. 키를 더할 때는 올리지 않는다.
-- 그래서 받는 쪽은 **모르는 키를 무시**한다. 스키마는 이 CLI 판이 내는 키를 모두 적고 그 밖의 키를 막는데, 그것은
-  CLI 의 시험이 스키마를 함께 고치게 하려는 것이다. 웹이 이 스키마로 엄격하게 검사하면 CLI 가 키를 더할 때 깨진다.
-- 파일 경로는 모두 검사 루트(git 저장소면 그 뿌리)에서의 상대 경로다.
-
-## 파일 역할의 키 (`handoff-w11-2` 부터)
-
-| 키 | 뜻 |
-|---|---|
-| `findings[].role` | 그 파일의 역할. `test`(시험·픽스처·목업·스토리, 경로로만 고른다), `config`(설정), `server`, `screen`, `other` |
-| `run.finding_counts` | `total`, `service`(server·screen·other 의 발견), `non_service`(test·config 의 발견), `by_role`(역할마다 수) |
-
-- 역할은 `index/roles.py` 가 경로와 내용의 모양으로 고른 힌트다. 판정, `findings` 의 목록, 종료 코드는 역할을 보지 않는다.
-  시험 파일의 발견도 그대로 `findings` 에 있다. 웹은 `role` 로 나눠 보이면 된다.
-- 글 출력(`full`·`concise`)은 test·config 파일의 발견을 뒤에 따로 묶고 요약에 그 수를 적는다.
-- 이 키가 없는 보고서(`handoff-w11` 판, 11/11 의 사례 실행 결과)는 역할을 모르는 것으로 읽는다.
-
-## 판정자(`--judge`)의 키
-
-`run.judge`(실제 모델 id), `run.judge_usage`(토큰 합), `run.judge_masked`(보내기 전에 가린 비밀값 수, 종류별. 가린 것이
-있을 때만), `questions_sent`·`questions_skipped`.
-시험·픽스처·설정 파일(`findings[].role` 이 test·config)은 판정자에게 묻지 않는다. 그 경고는 판정자가 없을 때와 같이 남고
-`untested_reasons` 에 `test-file` 이 붙는다(11/11: 정책 팩 픽스처 310개가 있는 저장소에서 질문 367개 → 0개).
-
-## 에이전트 검토(`--agent`)의 키
-
-`run.agent`, `findings[].agent` 와 그 안의 `reason`·`citations` 는 `schema_version` 1 의 계약이다. 정확도 실험을 하지
-않기로 하면서(결정 0004) 평가용 키라는 구분은 없어졌다.
-
-| 키 | 뜻 |
-|---|---|
-| `run.agent.judge`, `mode` | 에이전트 판정기(`agent:anthropic:<실제 모델 id>`)와 방식(review·combined·independent) |
-| `run.agent.records[]` | 진입 파일 하나에 대한 답(`verdict`)과 반영 결과(`action`), 인용(`citations`) |
-| `run.agent.discover`, `recheck` | 결합 방식의 찾기·재확인 단계. 모양은 `run.agent` 와 같다 |
-| `run.agent.questions[].sent` | 그 질문에서 밖으로 나간 것: 읽은 파일, 검색어, 검색 결과로 줄이 나간 파일(`matched`), 목록으로 나간 이름 수(`listed`), 가린 비밀값 수. `refused` 는 읽기를 거절한 비밀 파일(나가지 않았다) |
-| `unanswered`, `run.agent.questions_skipped`, `skipped_reasons` | 답을 받지 못한 질문, 보내지 않은 질문과 그 까닭(`unreachable` 서비스에 닿지 못함, `time` 시간 상한) |
-| `run.agent.seconds` | 에이전트 단계(review·찾기·재확인)에 걸린 시간 |
-| `findings[].agent` | 그 경고에 대한 에이전트의 답. 에이전트를 켜지 않으면 키가 없다 |
-| `raw` | 모델이 낸 글 그대로(읽지 못했거나 잘린 답일 때만). 진단용이고 코드가 섞일 수 있어 화면에 그대로 싣지 않는다 |
-
-### 인용과 줄 번호
-
-- 인용의 `ok` 는 관문 결과다. `why` 가 `grounded` 인 인용만 경고를 풀거나 새 경고의 근거가 된다.
-- `ok` 인 인용의 `line` 은 관문이 코드에서 다시 구한 줄(인용이 시작하는 줄)이다. 모델이 적은 줄이 다르면 그 값이
-  `line_model` 에 있다. `ok` 가 아닌 인용의 `line` 은 모델이 적은 값 그대로다.
-- 에이전트가 낸 경고(`rule` 이 `agent-independent`·`agent-discovered`)의 `line` 도 진입 파일에서 통과한 인용의 줄로
-  맞춘다. 모델이 다른 줄을 적었으면 `findings[].agent.line_model` 에 있다.
-- 관문은 인용이 코드에 글자 그대로 있는지만 본다. 문자열 리터럴 속 인용과 문서 파일(.md 등) 줄의 인용은 거르지
-  않는다. 화면의 고지 문구는 대개 문자열이고, 처리방침이 문서 파일인 서비스도 있어서 거르면 맞는 근거를 버린다.
-
-### `--agent` 에서 달라지는 것 (`schema_version` 은 그대로)
-
-- `run.units` 의 관계(`findings + ai_cleared + static_cleared`)는 에이전트를 끈 보고서에서만 맞다. 에이전트가 푼
-  경고는 `findings` 에서 빠지고 `run.agent.records[]`(재확인 단계면 `recheck.records[]`)에 `action: cleared` 로 남는다.
-  에이전트가 새로 찾은 경고는 팩 밖의 규칙 id(`agent-independent`, `agent-discovered`)로 `findings` 에 들어간다.
-- `--agent` 만 켜고 `--judge` 를 끄면 `run.judge` 는 null 이다. AI 를 썼는지는 `run.judge` 또는 `run.agent` 로 본다.
-- 찾기 단계에서 찾은 곳의 인용은 `discover.records[]` 에 있고, 재확인 단계가 다시 낸 인용은 `recheck.records[]` 에 있다.
-- 독립 검토(`independent`)에는 정적 판정이 없다. 답을 받지 못한 정책이 있으면 경고가 없어도 종료 코드가 1 이다
-  (`--fail-on uncertain`, 기본).
+- 키를 더할 때는 `review_version`·`profile_version` 을 올리지 않는다. 그래서 받는 쪽은 **모르는 키를 무시**한다.
+  스키마는 이 CLI 판이 내는 키를 모두 적고 그 밖의 키를 막는데, 그것은 CLI 의 시험이 스키마를 함께 고치게 하려는
+  것이다. 웹이 이 스키마로 엄격하게 검사하면 CLI 가 키를 더할 때 깨진다.
+- 파일 경로는 모두 검토하는 폴더(git 저장소면 그 뿌리)에서의 상대 경로다.
 
 ## 저장소 프로필(`policyofficer profile <폴더>`, 11/11 부터)
 
 모델을 부르지 않는다. 저장소가 하는 일(기능)과 그 기능에 걸릴 수 있는 의무를 낸다. 판단은 하지 않는다(목록 층).
-`profile_version` 은 1 이고 위 보고서와 같은 판 규칙(키를 더할 때는 그대로)을 따른다.
+`profile_version` 은 1 이다.
 
 | 키 | 뜻 |
 |---|---|
@@ -150,10 +98,10 @@ Quality(`--output-format gitlab`)는 그 형식의 규격을 따르고, 지문�
 | 키 | 뜻 |
 |---|---|
 | `summary` | 체크리스트의 갈래별 수(`counts`), 갈래 이름(`labels`), 맨 위 다섯 건의 의무 id(`top`), 한 줄로 묶어 보일 항목(`groups`: 품목 신호가 없어 묻지 않은 품목 의무, `id` goods) |
-| `profile` | 커밋(`commit`), 플랫폼(`platforms`: web·mobile·server, 출처 `platforms_from`: signal 은 package.json, model 은 package.json 으로 가르지 못해 이해 단계가 인용과 함께 적은 것 `platform_evidence`), 서비스 요약, 기능(`sources`: signal·model·static, 모델이 더한 근거 `model_citations`, 인용과 함께 뺀 것은 `removed`), 품목 신호(`goods`) |
+| `profile` | 커밋(`commit`), 플랫폼(`platforms`: web·mobile·server, 출처 `platforms_from`: signal 은 package.json, model 은 package.json 으로 가르지 못해 이해 단계가 인용과 함께 적은 것 `platform_evidence`), 서비스 요약, 기능(`sources`: signal·model, 모델이 더한 근거 `model_citations`, 인용과 함께 뺀 것은 `removed`. 11/25 전의 결과에는 static 도 있다), 품목 신호(`goods`) |
 | `data_flow` | 개인정보 흐름. `nodes[]`(input·server·store·external, 다루는 항목 `data`, 인용) 와 `edges[]`(from→to). 인용이 관문을 통과한 것만 |
 | `obligations.listed[]` | 목록 층: 감지된 기능과 거의 모든 서비스에 걸릴 수 있는 의무. `in_checklist` 는 검토 층에 들었는지 |
-| `checklist[]` | 검토 층. 이미 갈래 순으로 늘어서 있고 `rank` 가 1 부터다. 의무마다 `status`·`status_label`, 인용 `citations`, 부재를 보인 검색 `searches`, 개발자에게 물을 `question`, 조사 모델의 첫 답 `first`, 반박 `verification`(upheld · overturned · overturn-ungrounded · not-run, 조문 밖 요건이었는지 `off_quote`), 내장 팩 정적 결과 `static`, 어기면 법에 적힌 최대 제재 `sanction`(11/24 덧붙임, 아래), 조건은 있는데 없는 지킨 처리 `missing`(예: "약관 고지 화면이 없음"), 묻지 않은 품목 의무의 묶음 `group`(goods) |
+| `checklist[]` | 검토 층. 이미 갈래 순으로 늘어서 있고 `rank` 가 1 부터다. 의무마다 `status`·`status_label`, 인용 `citations`, 부재를 보인 검색 `searches`, 개발자에게 물을 `question`, 조사 모델의 첫 답 `first`, 반박 `verification`(upheld · overturned · overturn-ungrounded · not-run, 조문 밖 요건이었는지 `off_quote`), 어기면 법에 적힌 최대 제재 `sanction`(11/24 덧붙임, 아래), 조건은 있는데 없는 지킨 처리 `missing`(예: "약관 고지 화면이 없음"), 묻지 않은 품목 의무의 묶음 `group`(goods) |
 | `first`·`verification` 의 덧붙임(11/12) | 답이 적은 걸리는 조건 `applies`(예·아니오·모름)·`condition`, 없는 것 `missing`, 충족 인용의 성격 `shows`(행위·이름·기본값), 관문이 답을 바꾼 까닭 `gate`(`why`: condition-present · no-condition · name-or-default · audience · missing-check · applies-unknown · free-input · other-side · prohibition · same-model, `note` 는 `reason` 앞에도 붙는다). '해당 없음'의 근거 `basis`(처리 없음·확인 장치 없음, 같은 날 덧붙임). 걸리는 조건을 본 곳 `trigger`(입력란·처리·저장 · 자유 입력 추측, 11/13 덧붙임). `shows` 의 `금지 행위` 는 금지 의무(의무 표의 `prohibition`)에서 금지된 행위 자체를, `빈틈` 은 '코드에서 본 것'의 인용이 빈틈 자체(상수로 고정된 로그인 검사, 평문 저장 등)를 보인다는 표시다. 반박의 뒤집기는 자유 입력 관문이 옮긴 항목이면 그 정보를 받는 입력란·필드·저장의 인용(applies 예)이, 금지 의무면 금지 행위의 인용이 있어야 받고, 조사와 반박이 같은 모델이면 '충족'으로 올리는 뒤집기는 받지 않는다(`gate` same-model). '충족'이라 답할 때 적는 남은 부족한 점 `remaining`(없으면 '없음', 11/15 덧붙임)이 있으면 '코드에서 본 것'이다(`gate` remaining-gap). '금지 행위'·'빈틈' 표시는 관문을 통과한 인용이 있을 때만 받는다. 인용의 `why` 가 `profile` 이면 모델의 인용이 아니라 기능이 있다는 프로필 신호(걸리는 조건의 근거)다. `config-value` 면 설정 파일의 줄이지만 주소·호스트 값이 있어 받은 인용이다 |
 | `run` | 모델, 반박을 물었는지(`rebut`, false 면 `models.verify` 는 none 이고 반박할 항목은 not-run why rebut-off), 반박할 항목(`rebut_scope`: all · found, found 면 나머지는 not-run why rebut-scope), 묶음(`batch`: duty · feature · bundle), 저장소에 없는 쪽(`lacks`: screen 이면 서버만, server 면 화면만), 상한, 시간, 호출 수, 사용량, 어림 금액(공식 단가를 호출마다 매겨 더한 값), 상태·반박 결과별 수, 인용과 관문이 거절한 수, 검색과 다시 돌려 맞지 않은 수, 못 물은 의무(`not_asked`), 가린 비밀값, 읽지 않은 비밀 파일, 질문마다의 기록 |
 
@@ -188,5 +136,4 @@ order)·`condition`·`penalty`·`law`·`clause`·`url`·`quote`(법령 원문), 
 
 ## 아직 없는 것
 
-- 정책별 요약(정책마다 단위 수와 상태별 수), 결과에 실린 CLI 커밋·검사 시각, 팩 메타데이터 내보내기 명령.
-- 찾기 단계는 정책마다 질문 하나라 `--agent-max-units` 로 묶지 않는다(`--agent-time-limit` 으로 묶는다).
+- 결과에 실린 CLI 커밋·검토 시각.

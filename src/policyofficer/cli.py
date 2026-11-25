@@ -89,10 +89,12 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _progress_args(p: argparse.ArgumentParser) -> None:
+    from policyofficer.report.progress import MODES
+
     p.add_argument(
         "--progress",
         default="auto",
-        choices=["auto", "tty", "plain", "none"],
+        choices=list(MODES),
         help="진행 표시(stderr). auto(기본): 터미널이면 tty(제자리에서 다시 그림), CI·파이프·파일이면 plain(사건마다 "
         "한 줄, 제어 문자 없음). none: 그리지 않는다. NO_COLOR 가 있으면 색만 끈다",
     )

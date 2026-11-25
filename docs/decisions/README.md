@@ -6,6 +6,7 @@
 | 번호 | 결정 | 상태 |
 |---|---|---|
 | [0001](0001-legal-duties-as-target.md) | 점검 대상을 보안·품질 8유형에서 국내 법·정책 의무로 | 채택 |
-| [0002](0002-semgrep-as-signal-backend.md) | Semgrep 은 판정자가 아니라 신호 공급자 | 채택 |
+| [0002](0002-semgrep-as-signal-backend.md) | Semgrep 은 판정자가 아니라 신호 공급자 | 대체됨(→ 0005) |
 | [0003](0003-ai-judgement-needs-citation.md) | AI 판단은 인용 관문을 통과해야 판정에 들어간다 | 채택 |
 | [0004](0004-no-accuracy-experiment.md) | 정답지를 만드는 정확도 실험(네 방식 F1 비교)을 하지 않는다 | 채택 |
+| [0005](0005-review-only.md) | 제품은 review 하나다. scan 과 정책 팩을 걷어 낸다 | 채택 |

@@ -20,8 +20,6 @@ from policyofficer.review import events as E
 from policyofficer.review import feature_counts, first_cite
 from policyofficer.review.prompts import STATUS_LABEL
 
-STAGE_OF = {"understand": "understand", "investigate": "investigate", "rebut": "rebut"}
-
 
 def _duties(ids: list[str], items: dict[str, dict], short: dict[str, str]) -> tuple[E.Duty, ...]:
     out = []

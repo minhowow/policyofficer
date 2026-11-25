@@ -9,7 +9,7 @@
 | [direction.md](direction.md) | 방향 A 한 장: 무엇을 만들고 무엇을 하지 않는가 | 방향이 바뀔 때 |
 | [architecture.md](architecture.md) | 지금 구조, 모듈별 상태, 만들며 알게 된 것 | 모듈을 더하거나 이음매를 바꿀 때 |
 | [roadmap.md](roadmap.md) | 9~16주 일정, 결과 보고서에 실을 것 | 매주 지도교수 면담 뒤 |
-| [output.md](output.md) | scan JSON 보고서의 계약(스키마 `schemas/report-1.json`, 판 올리기, 에이전트 키의 뜻) | 보고서 키를 더하거나 뜻을 바꿀 때 |
+| [output.md](output.md) | review·profile JSON 의 계약(스키마 `schemas/review-2.json`, 판 올리기, 웹이 맞출 것) | 결과 키를 더하거나 뜻을 바꿀 때 |
 | [decisions/](decisions/) | 되돌리기 어려운 결정 기록(ADR) | 결정할 때 하나씩 더한다 |
 | [lawmap/](lawmap/) | 국내 법 의무 지도(795개)와 데이터 | 의무를 다시 조사할 때 |
 | [reports/](reports/) | 중간·결과 보고서와 발표 자료의 위치 | 제출할 때 |
@@ -20,4 +20,5 @@
 - **수치는 출처 파일과 함께 적는다.** 측정 수치의 원자료는 `~/.cache/policypack-eval/` 아래 날짜별 폴더에 있다.
   저장소에 올리지 않는 까닭은 공개 저장소 41개의 코드 조각이 섞여 있어서다.
 - **결정은 고치지 않고 새로 쓴다.** 뒤집힌 결정은 상태를 '대체됨'으로 바꾸고 새 번호를 단다.
-- 9/29 가지치기 전의 연구 기록(벤치마크 초안, 판정 계층 실험)은 태그 `archive/research-2026-09-29` 에 있다.
+- 9/29 가지치기 전의 연구 기록(벤치마크 초안, 판정 계층 실험)은 태그 `archive/research-2026-09-29` 에, 11/25 에 걷어 낸
+  scan·정책 팩은 태그 `static-final` 에 있다([decisions/0005](decisions/0005-review-only.md)).
