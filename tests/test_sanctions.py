@@ -27,7 +27,7 @@ def test_the_table_has_one_record_for_each_duty_the_review_asks():
     assert {s["class"] for s in table.values()} <= set(profile.SANCTION_CLASSES)
     assert all(i["quote"].strip() for s in table.values() for i in s["items"])
     assert all("duty" not in s for s in table.values())
-    # 화면은 '어기면 · {label}' 이라 label 안에 '어기면'이 또 있으면 두 번 읽힌다(11/24 jobtalk 실행 화면)
+    # label 은 화면에 그대로 나온다. 11/24 에 '시정명령을 어기면 …'을 '시정명령 불이행 시 …'로 고쳤다(jobtalk 실행 화면)
     assert not [d for d, s in table.items() if "어기면" in s["label"]]
 
 
@@ -124,15 +124,15 @@ def test_the_summary_puts_heavier_sanctions_first_and_marks_prison_and_fines():
         rows = [ln for ln in listed.splitlines() if re.match(r"^(!!|  )[ \d]\d  ", ln)]
         assert [re.search(r"제(\d)조", r).group(1) for r in rows] == ["2", "3", "5", "1", "4", "6"]
         assert [r.startswith("!!") for r in rows] == [True, True, False, False, False, True]
-        assert out.count(SANCTION_NOTE.split(".")[0]) == 1 and "어기면 · 징역 5년" in out
+        assert out.count(SANCTION_NOTE.split(".")[0]) == 1 and "  징역 5년" in out and "어기면" not in out
         if cols:
             assert all(progress.width(ln) <= cols for ln in out.splitlines())
     long_ = _item(7, "명령", 30_000_000, "check-applicability")
     long_["sanction"]["label"] = "시정명령 불이행 시 과태료 3천만원 · 악의적이면 징역 3년"
     doc["checklist"].append(long_)
     narrow, wide = render(doc, None, False, 80), render(doc, None, False, 140)
-    assert re.search(r"^      어기면 · 시정명령 불이행 시 과태료 3천만원", narrow, re.M)  # 좁으면 다음 줄로 내린다
-    assert re.search(r"제7조 · .+  어기면 · 시정명령 불이행 시", wide)
+    assert re.search(r"^      시정명령 불이행 시 과태료 3천만원", narrow, re.M)  # 좁으면 다음 줄로 내린다
+    assert re.search(r"제7조 · .+  시정명령 불이행 시", wide) and "어기면" not in narrow + wide
     assert SANCTION_NOTE.replace(" ", "") in render(doc, None, False, 80).replace("\n", "").replace(" ", "")
 
 
@@ -146,5 +146,6 @@ def test_replay_shows_sanctions_for_a_result_made_before_the_table(tmp_path, mon
     assert cli.main(["replay", str(tmp_path / "old.json"), "--speed", "1000", "--progress", "none"]) == 0
     out = capsys.readouterr().out
     listed = [c for c in doc["checklist"] if c["status"] in ("seen-in-code", "check-outside", "check-applicability")]
-    assert out.count("어기면 · ") == len([c for c in listed if c.get("group") != "goods"]) > 0
+    labels = [profile.load_sanctions()[c["duty"]]["label"] for c in listed if c.get("group") != "goods"]
+    assert labels and all(label in out for label in labels) and "어기면" not in out
     assert SANCTION_NOTE in out

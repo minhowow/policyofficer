@@ -189,7 +189,8 @@ def test_replay_draws_old_results_with_todays_table(tmp_path, monkeypatch, capsy
     for text in (out, err):
         assert "시정명령을 어기면" not in text and "시행령 시행령" not in text
     assert f"{decree['law_short']} {progress.article(decree['article'])}" in out
-    assert out.count("어기면 · ") > 0 and "질문 1 보냄 · 기능 파악" in err
+    assert profile.load_sanctions()[decree["id"]]["label"] in out and "어기면" not in out
+    assert "질문 1 보냄 · 기능 파악" in err
 
 
 def _item(rank: int, cls: str, status: str = "seen-in-code") -> dict:

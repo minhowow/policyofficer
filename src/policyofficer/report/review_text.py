@@ -4,7 +4,7 @@
 (코드에서 본 것 → 저장소 밖 → 해당 여부) 안에서 제재 등급 순(SANCTION_ORDER), 같은 등급이면 정액 상한(max_won)이 큰
 것이 먼저다. 항목에 제재(sanction)가 없으면 체크리스트 순서(rank) 그대로다.
 
-제재가 있으면 줄 끝에 "어기면 · {label}"을 붙이고(어느 줄이든 제목이 TITLE_MIN 칸보다 좁아지면 모두 다음 줄로
+제재가 있으면 줄 끝에 제재 표지(label)를 붙이고(어느 줄이든 제목이 TITLE_MIN 칸보다 좁아지면 모두 다음 줄로
 내린다), 징역·과징금은 강조한다. 색이 없어도 알아보게 번호 앞에 "!!"를 붙인다. 주의 문구(SANCTION_NOTE)는 요약
 아래에 한 번 둔다. 각주 바로 위에는 도구가 모델의 인용·'없다' 검색을 다시 대조한 결과를 한 줄로 둔다(tool_check).
 """
@@ -25,7 +25,8 @@ NOTE = "법률 자문이 아닙니다. 검토가 필요한 곳을 고를 뿐입�
 SANCTION_NOTE = "법에 적힌 최대 제재입니다. 위반 판정이 아니며, 실제 부과는 위반 사실과 규모에 따라 다릅니다."
 HEAVY = ("징역", "과징금")
 TITLE_MIN = 16
-"""제목에 남기는 가장 작은 폭. '어기면 · …'을 붙여 이보다 좁아지면 그것을 다음 줄로 내린다(80칸 창)."""
+"""제목에 남기는 가장 작은 폭. 제재 표지를 붙여 이보다 좁아지면 그것을 다음 줄로 내린다(80칸 창). 표지 앞에 '어기면'은
+붙이지 않는다(11/25 오너 지시: 어차피 아는 말이다)."""
 GOODS = "특정 품목을 판다면 확인할 것"
 CITE_WHY = {
     "test-file": "테스트 파일",
@@ -132,7 +133,7 @@ def home(path: str | Path) -> str:
 
 
 def _highlights(doc: dict, number: dict, add, lines: list, cols: int | None, g: Glyphs, dot: str) -> None:
-    """'먼저 볼 N건'(review.highlights). 건마다 법·조문·제목(목록과 같은 번호), 어기면 · 제재, 인용한 곳과 그 줄의
+    """'먼저 볼 N건'(review.highlights). 건마다 법·조문·제목(목록과 같은 번호), 제재 표지, 인용한 곳과 그 줄의
     코드, 없는 것과 물어볼 것(자르지 않고 줄을 나눈다)."""
     shown = (doc.get("summary") or {}).get("highlights")
     if shown is None:
@@ -165,7 +166,7 @@ def _highlights(doc: dict, number: dict, add, lines: list, cols: int | None, g: 
             style,
         )
         if sanction:
-            add(f"{lead}어기면{dot}{clean(sanction['label'])}", style)
+            add(f"{lead}{clean(sanction['label'])}", style)
         where = f"{h['file']}:{h['line']}" if h.get("line") else h["file"]
         add(clean(where), "dim", lead=lead)
         code = (h.get("text") or "").strip().splitlines()
@@ -228,11 +229,11 @@ def render(doc: dict, saved: str | Path | None, color: bool, cols: int | None, u
             sanction = c.get("sanction")
             heavy = bool(sanction) and sanction.get("class") in HEAVY
             head = f"{'!!' if heavy else '  '}{n:>2}  {clean(law_short(c))} {article(c.get('article', ''))}{dot}"
-            tail = f"  어기면{dot}{clean(sanction['label'])}" if sanction else ""
+            tail = f"  {clean(sanction['label'])}" if sanction else ""
             rows.append((c, head, clean(title(c.get("title", ""))), tail, "heavy" if heavy else None))
         if rows or goods:
             sections.append((s, rows, goods))
-    # '어기면 · …'은 모든 줄에 제목이 TITLE_MIN 칸 넘게 남을 때만 줄 끝에 둔다. 아니면 모두 다음 줄(한 모양으로)
+    # 제재 표지는 모든 줄에 제목이 TITLE_MIN 칸 넘게 남을 때만 줄 끝에 둔다. 아니면 모두 다음 줄(한 모양으로)
     rows_ = [r for _, rows, _ in sections for r in rows if r[3]]
     inline = cols is None or all(cols - width(head) - width(tail) >= TITLE_MIN for _, head, _, tail, _ in rows_)
     for s, rows, goods in sections:
