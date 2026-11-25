@@ -560,6 +560,7 @@ def test_scan_with_agent_adds_records_and_none_stays_plain(tmp_path, monkeypatch
         answer(("chat.ts", "미충족", chat, 1)),
         answer(),
         answer(),
+        answer(),  # kr.hiring-act.4-3(팩의 마지막 정책)의 찾기
         answer(("chat.ts", "미충족", [])),  # 찾은 곳을 review 처럼 다시 묻는다
     )
     monkeypatch.setattr(agent_mod, "build", fake(send))
@@ -570,7 +571,7 @@ def test_scan_with_agent_adds_records_and_none_stays_plain(tmp_path, monkeypatch
     assert agent["discover"]["actions"] == {"dropped-known": 1, "warned": 1}
     assert agent["recheck"]["actions"] == {"confirmed": 1}
     calls = agent["model_calls"] + agent["discover"]["model_calls"] + agent["recheck"]["model_calls"]
-    assert agent["total_model_calls"] == calls == 8
+    assert agent["total_model_calls"] == calls == 9
     assert [(Path(f["file"]).name, f["policy"]) for f in doc["findings"] if f["rule"] == "agent-discovered"] == [
         ("chat.ts", "kr.ai-basic-act.31-1")
     ]
