@@ -90,12 +90,12 @@ def _repo(tmp_path: Path) -> Path:
 
 def test_every_checklist_item_carries_its_sanction_and_matches_the_schema(tmp_path):
     inv, chk = AgentJudge("claude-haiku-5-5", review_transport()), AgentJudge("claude-sonnet-5-5", review_transport())
-    doc = rv.review(_repo(tmp_path), inv, chk, rv.Limits(concurrency=4), use_static=False)
+    doc = rv.review(_repo(tmp_path), inv, chk, rv.Limits(concurrency=4))
     table = profile.load_sanctions()
     assert doc["checklist"]
     for c in doc["checklist"]:
         assert c["sanction"] == table[c["duty"]]
-        assert list(c)[: list(c).index("sanction") + 1][-2:] == ["static", "sanction"]
+        assert list(c)[: list(c).index("sanction") + 1][-2:] == ["quote", "sanction"]
     errors = list(jsonschema.Draft202012Validator(SCHEMA).iter_errors(doc))
     assert not errors, [f"{list(e.path)}: {e.message[:200]}" for e in errors[:5]]
 
@@ -137,7 +137,7 @@ def test_the_summary_puts_heavier_sanctions_first_and_marks_prison_and_fines():
 
 def test_replay_shows_sanctions_for_a_result_made_before_the_table(tmp_path, monkeypatch, capsys):
     inv, chk = AgentJudge("claude-haiku-5-5", review_transport()), AgentJudge("claude-sonnet-5-5", review_transport())
-    doc = rv.review(_repo(tmp_path), inv, chk, rv.Limits(concurrency=4), use_static=False)
+    doc = rv.review(_repo(tmp_path), inv, chk, rv.Limits(concurrency=4))
     for c in doc["checklist"]:
         c.pop("sanction")
     (tmp_path / "old.json").write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")

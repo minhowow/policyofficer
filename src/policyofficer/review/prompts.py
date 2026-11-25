@@ -131,7 +131,7 @@ INVESTIGATE = """이 저장소의 코드에서 아래 의무마다, 의무가 �
 
 ## 이 기능을 알아본 근거
 {evidence}
-{static}
+
 ## 의무
 {duties}
 

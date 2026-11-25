@@ -12,7 +12,6 @@ from dataclasses import dataclass, field
 
 STAGES = {
     "profile": "기능 신호",
-    "static": "정적 규칙",
     "understand": "기능 파악",
     "investigate": "의무별 조사",
     "rebut": "반박",
@@ -47,9 +46,8 @@ class Stage:
     state: str
     """start | end | skip | fail"""
     detail: dict = field(default_factory=dict)
-    """단계마다 다르다. profile: features·platforms, static: findings·duties·error, understand: features·nodes·
-    reused·signals(신호로 잡힌 기능 수)·removed(AI 가 뺀 수)·added(AI 가 더한 수)·static_added(정적 규칙만 더한 수),
-    investigate: questions·duties, skip: why."""
+    """단계마다 다르다. profile: features·platforms, understand: features·nodes·reused·signals(신호로 잡힌 기능 수)·
+    removed(AI 가 뺀 수)·added(AI 가 더한 수), investigate: questions·duties, fail: error, skip: why."""
 
 
 @dataclass(frozen=True)

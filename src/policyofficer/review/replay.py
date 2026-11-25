@@ -3,7 +3,8 @@
 
 쓰는 것: run.questions(stage·duties·started·seconds·usd·failure·tool_calls·sent.read·sent.searches·repaired)와
 checklist(조사 답 first, 반박 verification). 결과에 없는 것은 이렇게 채운다.
-  - 기능 신호·정적 검사의 시간: 기록에 없다. 기능 신호는 0초에 끝나고 정적 검사는 첫 질문 앞까지로 그린다.
+  - 기능 신호의 시간: 기록에 없다. 0초에 시작해 첫 질문 앞에 끝난 것으로 그린다(옛 결과의 그 사이에는 이제 없는
+    단계의 시간도 들어 있다).
   - 도구 호출의 순서: 기록은 읽은 파일과 검색어를 따로 모은다(같은 파일을 두 번 읽은 것은 하나). 둘을 번갈아 질문의
     시간 안에 고르게 놓는다.
   - 상한에 걸려 보내지 않은 질문: 기록에 시각이 없어 바로 앞 질문이 끝난 때에 놓는다.
@@ -75,14 +76,7 @@ def timeline(doc: dict, short: dict[str, str] | None = None) -> tuple[E.Begin, l
     first_q = min((q["started"] for q in timed), default=run.get("seconds", 0.0))
     signal = sum(1 for f in prof.get("features", []) if "signal" in f.get("sources", []))
     at(0.0, E.Stage("profile", "start"))
-    at(0.0, E.Stage("profile", "end", {"features": signal, "platforms": prof.get("platforms", [])}))
-    static = run.get("static", {})
-    at(0.0, E.Stage("static", "start"))
-    if static.get("error"):
-        at(first_q, E.Stage("static", "fail", {"error": static["error"]}))
-    else:
-        hits = sum(len(c.get("static", [])) for c in items.values())
-        at(first_q, E.Stage("static", "end", {"findings": hits, "duties": static.get("duties", 0)}))
+    at(first_q, E.Stage("profile", "end", {"features": signal, "platforms": prof.get("platforms", [])}))
 
     und = run.get("understanding", {})
     flow = doc.get("data_flow", {})

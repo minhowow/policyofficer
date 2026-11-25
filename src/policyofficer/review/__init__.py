@@ -58,14 +58,11 @@
 
 지키는 것: 인용 관문, 비밀값 가리기·비밀 파일 거부(judge/agent.RepoTools), 저장소 밖 읽기 금지, 저장소당 상한(어림
 금액·시간). 상한 때문에 묻지 못한 의무는 '모름'으로 싣고 까닭을 적는다. 동시 요청은 429 를 보면 반으로 줄인다.
-기존 정책 팩(kr-core)의 정적 결과는 같은 의무 id 의 체크리스트 항목에 `static` 으로 붙고, 그 의무의 질문에 힌트로
-들어간다.
 """
 
 from __future__ import annotations
 
 import copy
-import io
 import os
 import queue
 import re
@@ -73,7 +70,7 @@ import subprocess
 import threading
 import time
 from collections.abc import Callable
-from contextlib import redirect_stderr, redirect_stdout, suppress
+from contextlib import suppress
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -320,9 +317,8 @@ def _always(d: dict, feature: dict | None) -> bool:
 
 
 def generative(feature: dict | None) -> bool:
-    """생성형 AI 신호가 있다: 프로필 신호(SDK 꾸러미·import·호출·주소)로만 정한다. 경로 낱말(ai·gpt), 이해 단계가 더한
-    것, 내장 팩의 정적 검사만으로는 아니다(11/13 실측: 포즈 분류 모델을 'AI 기능'으로 더했고, 정적 검사가 피드 화면의
-    JSX 한 줄을 AI 호출로 잡았다)."""
+    """생성형 AI 신호가 있다: 프로필 신호(SDK 꾸러미·import·호출·주소)로만 정한다. 경로 낱말(ai·gpt)이나 이해 단계가
+    더한 것만으로는 아니다(11/13 실측: 포즈 분류 모델을 'AI 기능'으로 더했다)."""
     return _present(feature) and any(
         e.get("signal") in ("package", "import", "call", "url") for e in feature["evidence"]
     )
@@ -821,36 +817,7 @@ def commit_of(root: Path) -> str | None:
     return out.stdout.strip() if out.returncode == 0 and out.stdout.strip() else None
 
 
-# ── 3. 정적 결과(kr-core) ────────────────────────────────────────────
-
-
-def static_results(root: Path) -> tuple[dict[str, list[dict]], str | None]:
-    """내장 팩으로 정적 검사(모델 호출 0회)를 돌려 의무 id 별 경고를 모은다. 실패하면 ({}, 까닭)."""
-    import json
-
-    from policyofficer.cli import _main, _report_root
-    from policyofficer.defaults import default_pack
-    from policyofficer.pack.loader import load_pack
-
-    out, err = io.StringIO(), io.StringIO()
-    with redirect_stdout(out), redirect_stderr(err):
-        code = _main(["scan", str(root), "--output-format", "json", "--exit-zero"])
-    if code != 0:
-        return {}, (err.getvalue().strip().splitlines() or [f"종료 코드 {code}"])[-1][:300]
-    report = json.loads(out.getvalue())
-    duties_of = {p.id: list(p.duties) for p in load_pack(default_pack()).policies}
-    base = _report_root([root])
-    by_duty: dict[str, list[dict]] = {}
-    for f in report["findings"]:
-        p = (base / f["file"]).resolve()
-        rel = p.relative_to(root).as_posix() if p.is_relative_to(root) else f["file"]
-        item = {"policy": f["policy"], "rule": f["rule"], "outcome": f["outcome"], "file": rel, "line": f["line"]}
-        for d in duties_of.get(f["policy"], []):
-            by_duty.setdefault(d, []).append(item)
-    return by_duty, None
-
-
-# ── 4·5. 근거 찾기와 반박 ─────────────────────────────────────────────
+# ── 3·4. 근거 찾기와 반박 ─────────────────────────────────────────────
 
 
 def _evidence_lines(feature: dict | None) -> str:
@@ -862,28 +829,16 @@ def _evidence_lines(feature: dict | None) -> str:
     return f"{feature['name']}\n" + "\n".join(rows)
 
 
-def _static_lines(group: list[dict], static: dict[str, list[dict]]) -> str:
-    rows = [
-        f"- [{d['id']}] {s['policy']}/{s['rule']} {s['outcome']} `{s['file']}`:{s['line']}"
-        for d in group
-        for s in static.get(d["id"], [])[:5]
-    ]
-    return "\n## 정적 검사가 찾은 곳(이 의무와 같은 정책)\n" + "\n".join(rows) + "\n" if rows else ""
-
-
 def _budget(n: int, base: int, per: int, cap: int) -> int:
     return min(base + per * max(0, n - 1), cap)
 
 
-def investigate(
-    run: Run, group: list[dict], feature: dict | None, summary: str, static: dict, platforms: str
-) -> dict[str, dict]:
+def investigate(run: Run, group: list[dict], feature: dict | None, summary: str, platforms: str) -> dict[str, dict]:
     budget = _budget(len(group), 20, 3, 40)
     prompt = P.INVESTIGATE.format(
         summary=summary or "(이해 단계의 요약 없음)",
         platforms=platforms,
         evidence=_evidence_lines(feature),
-        static=_static_lines(group, static),
         duties="\n".join(P.duty_block(d) for d in group),
         budget=budget,
         cite=P.CITE,
@@ -1068,7 +1023,7 @@ def _rebutted(x: E.Duty, r: dict, f: dict) -> E.Result:
     return E.Result(x.id, status, first_cite(r["citations"] if turned else f["citations"]), r["result"])
 
 
-def _base(d: dict, static: list[dict]) -> dict:
+def _base(d: dict) -> dict:
     out = {
         "duty": d["id"],
         "feature": d["feature"],
@@ -1078,14 +1033,12 @@ def _base(d: dict, static: list[dict]) -> dict:
         "duty_text": d["duty"],
         "url": d["url"],
         "quote": d["quote"],
-        "krcore": d.get("krcore", False),
-        "static": static,
     }
     return with_sanction(out)
 
 
 def feature_counts(features: list[dict]) -> dict[str, int]:
-    """기능 파악이 한 일(진행 화면): 남은 기능 수, 신호로 잡힌 수, AI 가 뺀 수·더한 수, 정적 규칙만 더한 수.
+    """기능 파악이 한 일(진행 화면): 남은 기능 수, 신호로 잡힌 수, AI 가 뺀 수·더한 수.
     기능 목록(select 의 첫 값, 결과의 profile.features)에서 센다. 기록 재생도 같은 것을 쓴다."""
     src = [set(f.get("sources", [])) for f in features]
     return {
@@ -1093,7 +1046,6 @@ def feature_counts(features: list[dict]) -> dict[str, int]:
         "signals": sum(1 for s in src if "signal" in s),
         "removed": sum(1 for f in features if "removed" in f),
         "added": sum(1 for s in src if "model" in s and "signal" not in s),
-        "static_added": sum(1 for s in src if s == {"static"}),
     }
 
 
@@ -1123,7 +1075,7 @@ def with_tables(item: dict, duties: dict[str, dict] | None = None) -> dict:
 def _goods_item(d: dict, g: dict) -> dict:
     """품목 신호가 없어 묻지 않은 품목 의무. '해당 여부부터 확인할 것'의 맨 뒤에 한 묶음(group: goods)으로 싣는다."""
     return {
-        **_base(d, []),
+        **_base(d),
         "status": "check-applicability",
         "asked": False,
         "not_answered": "goods-not-detected",
@@ -1140,7 +1092,7 @@ def _goods_item(d: dict, g: dict) -> dict:
 def _not_generative_item(d: dict) -> dict:
     """생성형 AI 신호가 없어 묻지 않은 AI 사전 고지·결과물 표시. '해당 여부부터 확인할 것'에 싣는다."""
     return {
-        **_base(d, []),
+        **_base(d),
         "status": "check-applicability",
         "asked": False,
         "not_answered": "not-generative",
@@ -1154,8 +1106,8 @@ def _not_generative_item(d: dict) -> dict:
     }
 
 
-def _item(d: dict, first: dict, check_: dict | None, static: list[dict]) -> dict:
-    base = _base(d, static)
+def _item(d: dict, first: dict, check_: dict | None) -> dict:
+    base = _base(d)
     if not first.get("asked") or "status" not in first:
         why = first.get("why") or "no-answer"
         return {
@@ -1222,9 +1174,9 @@ def _blank(fid: str, name: str) -> dict:
     return {"id": fid, "name": name, "sources": [], "evidence": [], "evidence_total": 0, "model_citations": []}
 
 
-def select(prof: dict, und: dict, static: dict[str, list[dict]]) -> tuple[list[dict], ...]:
-    """(기능 목록, 목록 층 의무, 검토 층 의무, 묻지 않는 의무). 기능은 신호 + 이해 단계가 더한 것 − 뺀 것 + 정적
-    검사가 찾은 것. 검토 층은 묻는 순서다(PRIORITY·기능 목록 순, 기능 안에서는 core_key). 품목 의무는 프로필에 그
+def select(prof: dict, und: dict) -> tuple[list[dict], ...]:
+    """(기능 목록, 목록 층 의무, 검토 층 의무, 묻지 않는 의무). 기능은 신호 + 이해 단계가 더한 것 − 뺀 것. 검토 층은
+    묻는 순서다(PRIORITY·기능 목록 순, 기능 안에서는 core_key). 품목 의무는 프로필에 그
     품목 신호가 있을 때만 묻는다. 묻지 않는 의무는 품목 의무와, 생성형 AI 기능 없이 분류·인식 모델(ai-model)만 있을 때의
     AI 사전 고지·결과물 표시다."""
     spec = load_features()
@@ -1248,12 +1200,6 @@ def select(prof: dict, und: dict, static: dict[str, list[dict]]) -> tuple[list[d
             f["sources"].append("model")
         f["model_citations"] += [c for c in a["citations"] if c["ok"]]
         f["model_reason"] = a["reason"]
-    for did, hits in static.items():
-        fid = by_id[did]["feature"] if did in by_id else None
-        if fid and fid in names and hits:
-            f = features.setdefault(fid, _blank(fid, names[fid]))
-            if "static" not in f["sources"]:
-                f["sources"].append("static")
     for fid in list(features):
         if fid in removed and features[fid]["sources"] == ["signal"]:
             features[fid]["removed"] = {"reason": removed[fid]["reason"], "citations": removed[fid]["citations"]}
@@ -1263,9 +1209,9 @@ def select(prof: dict, und: dict, static: dict[str, list[dict]]) -> tuple[list[d
     listed = [d for d in duties if d["feature"] in ids]
     order = {fid: i for i, fid in enumerate(PRIORITY)}
     rest = {f["id"]: len(PRIORITY) + i for i, f in enumerate(spec["features"])}
-    review = [
-        d for d in listed if d["review_candidate"] or (d.get("krcore") and (static.get(d["id"]) or d["feature"] in ids))
-    ]
+    # 의무 표의 krcore 는 옛 정책 팩이 다루던 의무 8개다. 검토 후보(review_candidate)가 아닌 둘(pipa-26-2,
+    # pipa-28-8-1)도 묻는다(묻는 의무 220개, 제재 표와 1:1)
+    review = [d for d in listed if d["review_candidate"] or d.get("krcore")]
     goods, seen = _goods(), {g["id"] for g in prof.get("goods") or []}
     skipped = [d for d in review if d["id"] in goods and goods[d["id"]]["id"] not in seen]
     review = [d for d in review if d not in skipped]
@@ -1350,13 +1296,12 @@ def parallel(fn: Callable, items: list, workers: int) -> list:
     return results
 
 
-def plan(root: Path, use_static: bool = True) -> dict:
+def plan(root: Path) -> dict:
     """모델을 부르지 않고 무엇을 물을지만 센다(비용 어림용)."""
     root = root.resolve()
     prof = profile(root)
-    static, err = static_results(root) if use_static else ({}, None)
     empty = {"summary": "", "added": [], "removed": []}
-    features, listed, review, skipped = select(prof, empty, static)
+    features, listed, review, skipped = select(prof, empty)
     return {
         "features": [f["id"] for f in features],
         "listed": len(listed),
@@ -1364,7 +1309,6 @@ def plan(root: Path, use_static: bool = True) -> dict:
         "goods_not_asked": sum(d["id"] in _goods() for d in skipped),
         "not_generative": sum(d["id"] not in _goods() for d in skipped),
         "questions": {b: len(groups_of(review, b)) for b in ("feature", "bundle", "duty")},
-        "static_error": err,
     }
 
 
@@ -1373,7 +1317,6 @@ def review(
     investigator: AgentJudge,
     checker: AgentJudge,
     limits: Limits | None = None,
-    use_static: bool = True,
     throttles: tuple[Throttle, ...] = (),
     reuse: dict | None = None,
     progress: E.Sink = E.ignore,
@@ -1392,15 +1335,6 @@ def review(
     progress(E.Stage("profile", "start"))
     prof = profile(root)
     progress(E.Stage("profile", "end", {"features": len(prof["features"]), "platforms": prof.get("platforms", [])}))
-    if use_static:
-        progress(E.Stage("static", "start"))
-        static, static_err = static_results(root)
-        hits = sum(len(v) for v in static.values())
-        detail = {"error": static_err} if static_err else {"findings": hits, "duties": len(static)}
-        progress(E.Stage("static", "fail" if static_err else "end", detail))
-    else:
-        static, static_err = {}, None
-        progress(E.Stage("static", "skip", {"why": "off"}))
     catalog = {f["id"]: f["name"] for f in load_features()["features"]}
     if reuse is not None:
         und = from_previous(root, reuse, catalog)
@@ -1410,7 +1344,7 @@ def review(
         und = understand(run, prof, catalog)
     platforms, run.platforms_from = platforms_of(prof, und)
     run.lacks = lacks(root, platforms)
-    features, listed, review_duties, skipped = select(prof, und, static)
+    features, listed, review_duties, skipped = select(prof, und)
     by_feature = {f["id"]: f for f in features}
     groups = groups_of(review_duties, limits.batch)
     plats = _platforms(platforms)
@@ -1422,7 +1356,7 @@ def review(
 
     def work(group: list[dict]) -> tuple[dict, dict]:
         feature = by_feature.get(group[0]["feature"])
-        first = investigate(run, group, feature, und["summary"], static, plats)
+        first = investigate(run, group, feature, und["summary"], plats)
         with lock:
             done[0] += 1
             last = done[0] == len(groups)
@@ -1454,15 +1388,15 @@ def review(
 
     goods = _goods()
     checklist = arrange(
-        [_item(d, firsts.get(d["id"], {}), checks.get(d["id"]), static.get(d["id"], [])) for d in review_duties]
+        [_item(d, firsts.get(d["id"], {}), checks.get(d["id"])) for d in review_duties]
         + [_goods_item(d, goods[d["id"]]) if d["id"] in goods else _not_generative_item(d) for d in skipped]
     )
     seconds = time.monotonic() - t0
     prof = {**prof, "platforms": platforms}
-    return _report(run, prof, und, features, listed, checklist, static, static_err, seconds, throttles)
+    return _report(run, prof, und, features, listed, checklist, seconds, throttles)
 
 
-def _report(run: Run, prof, und, features, listed, checklist, static, static_err, seconds, throttles) -> dict:
+def _report(run: Run, prof, und, features, listed, checklist, seconds, throttles) -> dict:
     in_checklist = {c["duty"] for c in checklist}
     # 모델이 댄 인용만 센다(조건의 근거로 붙인 프로필 신호 why: profile 은 빼고)
     cites = [c for q in checklist for c in (q["first"] or {}).get("citations", []) if c["why"] != "profile"]
@@ -1561,7 +1495,6 @@ def _report(run: Run, prof, und, features, listed, checklist, static, static_err
             "not_asked": not_asked,
             "masked": masked,
             "refused": sorted(refused),
-            "static": {"ran": not static_err, "error": static_err, "duties": len(static)},
             "questions": run.questions,
         },
     }

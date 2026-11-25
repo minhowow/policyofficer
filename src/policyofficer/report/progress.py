@@ -298,12 +298,10 @@ def understood(d: dict, sep: str) -> str:
     기능 수만."""
     text = f"기능 {d.get('features', 0)}개"
     if "signals" in d:
-        n, cut, add, static = d["signals"], d.get("removed", 0), d.get("added", 0), d.get("static_added", 0)
+        n, cut, add = d["signals"], d.get("removed", 0), d.get("added", 0)
         parts = [f"신호 {n}개 중 {cut}개 뺌"] if cut else []
         if add:
             parts.append(f"{add}개 더함" if cut else f"신호 {n}개에 {add}개 더함")
-        if static:
-            parts.append(f"정적 규칙으로 {static}개")
         text += f"({sep.join(parts)})" if parts else f"(신호 {n}개 그대로)"
     if d.get("nodes"):
         text += f"{sep}개인정보 흐름 {d['nodes']}칸"
@@ -373,13 +371,11 @@ class State:
             if why == "reused":
                 return f"앞 결과를 씀{sep}기능 {d.get('features', 0)}개"
             return {"off": "끔", "nothing": "물을 것 없음" if stage != "gate" else "대조할 것 없음"}.get(why, "건너뜀")
-        if stage in ("profile", "static") and state == "start":
+        if stage == "profile" and state == "start":
             return "모델 호출 없음"
         if stage == "profile":
             plats = ", ".join(PLATFORM.get(p, p) for p in d.get("platforms", []))
             return f"기능 {d.get('features', 0)}개" + (f"{sep}{plats}" if plats else "")
-        if stage == "static":
-            return f"경고 {d.get('findings', 0)}건" + (f"{sep}의무 {d['duties']}개" if d.get("duties") else "")
         if stage == "understand":
             if state == "start":
                 return "저장소를 읽는 중"
@@ -567,7 +563,7 @@ class Plain(Display):
                 detail = clean(ev.detail.get("error", ""))
             elif ev.state == "start" and ev.stage == "investigate":
                 detail = f"의무 {ev.detail.get('duties', 0)}개를 골라 질문 {ev.detail.get('questions', 0)}개"
-            elif ev.state != "start" or ev.stage in ("profile", "static"):
+            elif ev.state != "start" or ev.stage == "profile":
                 detail = st.stage_text(ev.stage, g.dot)
             self._line(f"{name} {word}" + (f"{dot}{detail}" if detail else ""))
         elif isinstance(ev, E.Asked):

@@ -196,7 +196,7 @@ def _valid(doc: dict) -> None:
 
 @pytest.mark.parametrize("batch", ["duty", "feature", "bundle"])
 def test_the_whole_path_runs_on_fake_answers_and_matches_the_schema(tmp_path, batch):
-    doc, log = _run(_repo(tmp_path), batch, use_static=batch == "duty")
+    doc, log = _run(_repo(tmp_path), batch)
     _valid(doc)
 
     feats = {f["id"]: f for f in doc["profile"]["features"]}
@@ -293,10 +293,8 @@ def test_the_whole_path_runs_on_fake_answers_and_matches_the_schema(tmp_path, ba
     run = doc["run"]
     assert run["calls"] > 0 and run["usd_estimate"] > 0 and run["citations_rejected"] > 0
     assert run["searches"] > 0 and run["searches_rejected"] > 0
+    assert "static" not in run and not any("static" in i or "krcore" in i for i in items)  # 11/25 에 걷어 냄
     if batch == "duty":
-        assert run["static"]["ran"]
-        kid = next(i for i in items if i["duty"] == "pipa-22-2-1")
-        assert kid["krcore"] and kid["static"] and kid["static"][0]["file"] == "src/routes/signup.ts"
         assert all(len(q.get("duties", [])) <= 1 for q in run["questions"] if q["stage"] == "investigate")
     if batch == "bundle":  # 표의 묶음마다 한 질문(4개까지), 표에 없는 의무는 하나씩. 답은 의무마다다
         bundles = rv._bundles()
@@ -309,14 +307,14 @@ def test_the_whole_path_runs_on_fake_answers_and_matches_the_schema(tmp_path, ba
 
 def test_a_saved_understanding_is_reused_without_asking(tmp_path):
     root = _repo(tmp_path)
-    first, _ = _run(root, "duty", use_static=False)
+    first, _ = _run(root, "duty")
 
     def no_understanding(body):
         assert not _text(body).startswith("이 저장소가 어떤 서비스인지"), "이해 단계를 다시 물었다"
         return inner(body)
 
     inner = fake_investigator()
-    again, _ = _run(root, "duty", use_static=False, reuse=first, investigator=no_understanding)
+    again, _ = _run(root, "duty", reuse=first, investigator=no_understanding)
     _valid(again)
     assert not any(q["stage"] == "understand" for q in again["run"]["questions"])
     assert again["run"]["understanding"]["reused"]
@@ -332,7 +330,7 @@ def test_a_saved_understanding_is_reused_without_asking(tmp_path):
 
 def test_the_cost_cap_leaves_duties_unknown_and_says_why(tmp_path):
     cap = rv.RESERVE["claude-haiku-5-5"] + 0.001
-    doc, _ = _run(_repo(tmp_path), "duty", use_static=False, usd=cap)
+    doc, _ = _run(_repo(tmp_path), "duty", usd=cap)
     unknown = [i for i in doc["checklist"] if i["status"] == "unknown"]
     assert unknown and all(i["not_answered"] == "cost-cap" for i in unknown)
     assert doc["run"]["not_asked"]["cost-cap"] == len(unknown)
@@ -376,7 +374,7 @@ def test_a_prose_answer_is_rewritten_once_into_json(tmp_path):
             return _reply(UNDERSTOOD)
         return inner(body)
 
-    doc, _ = _run(_repo(tmp_path), "duty", use_static=False, investigator=send)
+    doc, _ = _run(_repo(tmp_path), "duty", investigator=send)
     q = doc["run"]["questions"][0]
     assert q["stage"] == "understand" and q["repaired"] and q["failure"] is None and q["calls"] == 2
     assert doc["profile"]["summary"] and doc["run"]["understanding"]["answered"]
@@ -485,7 +483,7 @@ def test_an_unknown_applicability_goes_to_check_applicability(tmp_path):
     def unsure_answer(_duty_id):
         return ("확인할 것(코드에서 본 것)", [STORE], [], {"applies": "모름", "condition": "가입을 받는다"})
 
-    doc, log = _run(_repo(tmp_path), "duty", use_static=False, investigator=fake_investigator(unsure_answer))
+    doc, log = _run(_repo(tmp_path), "duty", investigator=fake_investigator(unsure_answer))
     _valid(doc)
     feats = {f["id"]: f for f in doc["profile"]["features"]}
     rows, screen = {d["id"]: d for d in rv.load_duties()}, rv._sides()["screen"]  # 픽스처는 서버만이다
@@ -511,9 +509,7 @@ def test_an_unknown_applicability_goes_to_check_applicability(tmp_path):
             out.append({"duty": d, "result": "뒤집음", "status": status, "applies": applies, "citations": [STORE]})
         return _reply({"results": out})
 
-    doc, _ = _run(
-        _repo(tmp_path), "duty", use_static=False, investigator=fake_investigator(drop), checker=split_checker
-    )
+    doc, _ = _run(_repo(tmp_path), "duty", investigator=fake_investigator(drop), checker=split_checker)
     _valid(doc)
     flipped = [i for i in doc["checklist"] if i["verification"]["result"] == "overturned"]
     assert flipped and all(i["first"]["status"] == "likely-not-applicable" for i in flipped)
@@ -550,7 +546,7 @@ def test_the_rebuttal_passes_the_same_gate(tmp_path):
     def outside(_duty_id):
         return ("확인할 것(저장소 밖)", [], [], {})
 
-    doc, log = _run(_repo(tmp_path), "duty", use_static=False, investigator=fake_investigator(outside))
+    doc, log = _run(_repo(tmp_path), "duty", investigator=fake_investigator(outside))
     _valid(doc)
     items = {i["duty"]: i for i in doc["checklist"]}
     terms = items["tcra-3-2"]  # 가입 기능이 있다 → 해당 없음으로 뒤집지 못한다
@@ -570,7 +566,7 @@ def test_goods_duties_wait_for_a_goods_signal(tmp_path):
     (tmp_path / "package.json").write_text(json.dumps({"dependencies": {"express": "4"}}))
     (tmp_path / "src" / "cart").mkdir(parents=True)
     (tmp_path / "src" / "cart" / "order.ts").write_text("export const order = (id) => db.order.create({ id });\n")
-    doc, _ = _run(tmp_path, "duty", use_static=False, investigator=fake_investigator(lambda d: ANSWERS[5]))
+    doc, _ = _run(tmp_path, "duty", investigator=fake_investigator(lambda d: ANSWERS[5]))
     _valid(doc)
     goods = {d for g in rv.load_features()["goods"] for d in g["duties"]}
     asked = [d for q in doc["run"]["questions"] if q["stage"] == "investigate" for d in q["duties"]]
@@ -586,7 +582,7 @@ def test_goods_duties_wait_for_a_goods_signal(tmp_path):
     assert applicability[-len(held) :] == held  # 갈래의 맨 뒤
     # 묻는 순서(동시에 물어 질문 기록의 순서는 조금 섞인다): 상거래 안에서는 일반 범위(표시광고법), 기능이 있으면
     # 걸리는 의무(탈퇴·해지를 가입처럼 등), 그다음은 흔한 것부터
-    _, _, order, _ = rv.select(rv.profile(tmp_path), {"summary": "", "added": [], "removed": []}, {})
+    _, _, order, _ = rv.select(rv.profile(tmp_path), {"summary": "", "added": [], "removed": []})
     commerce = [d for d in order if d["feature"] == "commerce"]
     whenever = set(rv._whenever())
     assert [d["scope"] for d in commerce[:2]] == ["general", "general"]
@@ -597,10 +593,10 @@ def test_goods_duties_wait_for_a_goods_signal(tmp_path):
 
     # 품목 신호(화면 문구의 '와인')가 생기면 그 품목 의무를 묻는다. 기능 안에서 맨 뒤다
     (tmp_path / "src" / "cart" / "menu.ts").write_text('export const MENU = ["와인", "치즈"];\n')
-    doc, _ = _run(tmp_path, "duty", use_static=False, investigator=fake_investigator(lambda d: ANSWERS[5]))
+    doc, _ = _run(tmp_path, "duty", investigator=fake_investigator(lambda d: ANSWERS[5]))
     asked = [d for q in doc["run"]["questions"] if q["stage"] == "investigate" for d in q["duties"]]
     assert {"liquor-mail-6-0-0-2", "youth-28-4"} <= set(asked)
-    _, _, order, skipped = rv.select(rv.profile(tmp_path), {"summary": "", "added": [], "removed": []}, {})
+    _, _, order, skipped = rv.select(rv.profile(tmp_path), {"summary": "", "added": [], "removed": []})
     commerce = [d["id"] for d in order if d["feature"] == "commerce"]
     assert set(commerce[-2:]) == {"liquor-mail-6-0-0-2", "youth-28-4"} and not goods & set(commerce[:-2])
     assert {"liquor-mail-6-0-0-2", "youth-28-4"}.isdisjoint(d["id"] for d in skipped)
@@ -662,9 +658,7 @@ def test_a_guess_about_free_input_is_not_a_condition(tmp_path):
             )  # fmt: skip
         return _reply({"results": out})
 
-    doc, _ = _run(
-        _repo(tmp_path), "duty", use_static=False, investigator=fake_investigator(drop), checker=guessing_checker
-    )
+    doc, _ = _run(_repo(tmp_path), "duty", investigator=fake_investigator(drop), checker=guessing_checker)
     _valid(doc)
     held = [i for i in doc["checklist"] if (i["verification"].get("gate") or {}).get("why") == "free-input"]
     taken = [i for i in doc["checklist"] if i["verification"]["result"] == "overturned"]
@@ -676,7 +670,7 @@ def test_a_guess_about_free_input_is_not_a_condition(tmp_path):
 
 
 def test_ai_notices_wait_for_a_generative_signal(tmp_path):
-    """AI 사전 고지·결과물 표시는 생성형 AI 신호(꾸러미·import·호출·주소, 정적 검사, 그 글자가 있는 인용)가 있을 때만
+    """AI 사전 고지·결과물 표시는 생성형 AI 신호(꾸러미·import·호출·주소)가 있을 때만
     묻는다. 분류·인식 모델만 있거나 경로 낱말·이해 단계의 말뿐이면 묻지 않고 '해당 여부부터'다(11/13 실측: 포즈 분류
     모델을 'AI 기능'으로 보고 생성형 AI 결과물 표시를 '코드에서 본 것'으로 고정했다)."""
     cite = {"ok": True, "why": "grounded", "file": "Game.js", "line": 1}
@@ -684,10 +678,8 @@ def test_ai_notices_wait_for_a_generative_signal(tmp_path):
     pose = {"id": "genai", "name": "생성형 AI", "sources": ["model"], "evidence": [],
             "model_citations": [{**cite, "text": predict}]}  # fmt: skip
     assert not rv.generative(pose) and not rv.generative(None)
-    # 프로필 신호(SDK 꾸러미·import·호출·주소)로만 정한다. 이해 단계의 인용, 정적 검사만으로는 아니다(11/13 3배치 실측:
-    # 정적 검사가 피드 화면의 JSX 한 줄을 AI 호출로 잡았다)
+    # 프로필 신호(SDK 꾸러미·import·호출·주소)로만 정한다. 이해 단계의 인용만으로는 아니다
     assert not rv.generative({**pose, "model_citations": [{**cite, "text": "return client.chat.completions.create("}]})
-    assert not rv.generative({**pose, "sources": ["static"]})
     assert not rv.generative({**pose, "sources": ["signal"], "evidence": [{"signal": "path", "value": "ai"}]})
     for kind in ("package", "import", "call", "url"):
         assert rv.generative({**pose, "sources": ["signal"], "evidence": [{"signal": kind, "value": "openai"}]})
@@ -710,7 +702,7 @@ def test_ai_notices_wait_for_a_generative_signal(tmp_path):
     (tmp_path / "src" / "Game.jsx").write_text(
         "export async function load(url) {\n  const model = await tmPose.load(url);\n  return model;\n}\n"
     )
-    doc, _ = _run(tmp_path, "duty", use_static=False, investigator=fake_investigator(lambda d: ANSWERS[3]))
+    doc, _ = _run(tmp_path, "duty", investigator=fake_investigator(lambda d: ANSWERS[3]))
     _valid(doc)
     assert "ai-model" in {f["id"] for f in doc["profile"]["features"]}
     asked = {d for q in doc["run"]["questions"] if q["stage"] == "investigate" for d in q["duties"]}
@@ -723,7 +715,7 @@ def test_ai_notices_wait_for_a_generative_signal(tmp_path):
     pkg = {"dependencies": {"react": "18", "openai": "4"}}
     (tmp_path / "package.json").write_text(json.dumps(pkg))
     (tmp_path / "src" / "chat.ts").write_text('import OpenAI from "openai";\nexport const ai = new OpenAI();\n')
-    doc, _ = _run(tmp_path, "duty", use_static=False, investigator=fake_investigator(lambda d: ANSWERS[3]))
+    doc, _ = _run(tmp_path, "duty", investigator=fake_investigator(lambda d: ANSWERS[3]))
     asked = {d for q in doc["run"]["questions"] if q["stage"] == "investigate" for d in q["duties"]}
     assert gen <= asked and not any(i.get("not_answered") == "not-generative" for i in doc["checklist"])
 
@@ -842,7 +834,7 @@ def test_a_relabelled_guess_cannot_raise_an_item_the_guess_gate_moved(tmp_path):
     def guessing(_duty_id):
         return ("확인할 것(코드에서 본 것)", [STORE], [ABSENT], {"applies": "예", "trigger": "자유 입력 추측"})
 
-    _, log = _run(root, "duty", use_static=False, investigator=fake_investigator(guessing))
+    _, log = _run(root, "duty", investigator=fake_investigator(guessing))
     assert any("자유 입력 추측뿐이었다" in p for p in log)
 
 
@@ -889,13 +881,12 @@ def test_the_same_model_cannot_raise_an_item_to_evidence_found(tmp_path):
 
     # 전체 경로: 같은 모델의 반박은 충족으로 올리지 못하고, 다른 뒤집기(해당 없음 등)는 그대로다
     log: list = []
-    doc, _ = _run(root, "duty", use_static=False, checker=fake_checker(log))
+    doc, _ = _run(root, "duty", checker=fake_checker(log))
     same = rv.review(
         root,
         AgentJudge("claude-haiku-5-5", fake_investigator()),
         AgentJudge("claude-haiku-5-5", fake_checker([])),
         rv.Limits(usd=5.0, seconds=300, concurrency=2, batch="duty"),
-        use_static=False,
     )
     _valid(same)
     flips = [i for i in doc["checklist"] if i["verification"]["result"] == "overturned"]
@@ -915,7 +906,6 @@ def test_the_rebuttal_can_be_turned_off_and_the_report_says_so(tmp_path):
         AgentJudge("claude-haiku-5-5", fake_investigator()),
         AgentJudge("claude-sonnet-5-5", fake_checker(log)),
         rv.Limits(usd=5.0, seconds=300, concurrency=2, batch="duty", rebut=False),
-        use_static=False,
     )
     _valid(doc)
     assert not log and not any(q["stage"] == "rebut" for q in doc["run"]["questions"])
@@ -979,7 +969,7 @@ def test_the_understanding_decides_features_in_any_language(tmp_path):
         return fake_investigator(lambda d: ANSWERS[3])(body)
 
     assert rv.profile(tmp_path)["service_features"] == 0  # 규칙 신호(JS·TS)로는 아무것도 못 찾는다
-    doc, _ = _run(tmp_path, "bundle", use_static=False, investigator=inv)
+    doc, _ = _run(tmp_path, "bundle", investigator=inv)
     _valid(doc)
     feats = {f["id"]: f for f in doc["profile"]["features"]}
     assert set(feats) == {"signup", "commerce"} and all(f["sources"] == ["model"] for f in feats.values())
@@ -989,7 +979,7 @@ def test_the_understanding_decides_features_in_any_language(tmp_path):
     asked = {i["duty"] for i in doc["checklist"] if i["asked"]}
     assert {"tcra-3-2", "pipa-29-1", "ecom-10-1"} <= asked  # 가입·공통·상거래 의무를 묻는다
     # 같은 결과를 되살려도 기능·플랫폼이 같다
-    again, _ = _run(tmp_path, "duty", use_static=False, reuse=doc, investigator=inv)
+    again, _ = _run(tmp_path, "duty", reuse=doc, investigator=inv)
     _valid(again)
     assert again["profile"]["platforms"] == ["server"] and again["profile"]["platforms_from"] == "model"
     assert {f["id"] for f in again["profile"]["features"]} == set(feats)
@@ -1083,7 +1073,6 @@ def test_evidence_found_with_a_remaining_gap_is_seen_in_code(tmp_path):
         AgentJudge("claude-haiku-5-5", fake_investigator(met)),
         AgentJudge("claude-sonnet-5-5", fake_checker([])),
         rv.Limits(usd=5.0, seconds=300, concurrency=2, batch="duty", rebut=False),
-        use_static=False,
     )
     _valid(doc)
     moved = [i for i in doc["checklist"] if ((i["first"] or {}).get("gate") or {}).get("why") == "remaining-gap"]
@@ -1101,7 +1090,6 @@ def test_the_rebuttal_can_be_limited_to_what_was_found(tmp_path):
         AgentJudge("claude-haiku-5-5", fake_investigator()),
         AgentJudge("claude-sonnet-5-5", fake_checker(log)),
         rv.Limits(usd=5.0, seconds=300, concurrency=2, batch="duty", rebut_scope="found"),
-        use_static=False,
     )
     _valid(doc)
     assert doc["run"]["rebut_scope"] == "found" and log

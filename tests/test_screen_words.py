@@ -34,8 +34,8 @@ BEGIN = E.Begin(
 
 
 def test_the_stages_have_the_names_the_poster_uses():
-    assert list(E.STAGES) == ["profile", "static", "understand", "investigate", "rebut", "gate"]  # 키는 그대로
-    assert list(E.STAGES.values()) == ["기능 신호", "정적 규칙", "기능 파악", "의무별 조사", "반박", "직접 대조"]
+    assert list(E.STAGES) == ["profile", "understand", "investigate", "rebut", "gate"]
+    assert list(E.STAGES.values()) == ["기능 신호", "기능 파악", "의무별 조사", "반박", "직접 대조"]
 
 
 @pytest.fixture
@@ -142,7 +142,7 @@ def test_understood_counts_what_the_model_took_out_and_added():
     assert progress.understood({"features": 3}, sep) == "기능 3개"
     features = [{"sources": ["signal", "model"]}] * 4 + [{"sources": ["signal"], "removed": {}}] * 2
     features += [{"sources": ["signal"]}, {"sources": ["model"]}]
-    assert rv.feature_counts(features) == {"features": 6, "signals": 7, "removed": 2, "added": 1, "static_added": 0}
+    assert rv.feature_counts(features) == {"features": 6, "signals": 7, "removed": 2, "added": 1}
 
 
 def _repo(tmp_path: Path) -> Path:
@@ -159,7 +159,7 @@ def _repo(tmp_path: Path) -> Path:
 def _review(tmp_path: Path, events: list | None = None) -> dict:
     inv, chk = AgentJudge("claude-haiku-5-5", review_transport()), AgentJudge("claude-sonnet-5-5", review_transport())
     sink = events.append if events is not None else E.ignore
-    return rv.review(_repo(tmp_path), inv, chk, rv.Limits(concurrency=4), use_static=False, progress=sink)
+    return rv.review(_repo(tmp_path), inv, chk, rv.Limits(concurrency=4), progress=sink)
 
 
 def test_replay_counts_the_understanding_the_same_way_as_the_run(tmp_path):
@@ -168,7 +168,7 @@ def test_replay_counts_the_understanding_the_same_way_as_the_run(tmp_path):
     live = next(e for e in seen if isinstance(e, E.Stage) and e.stage == "understand" and e.state == "end").detail
     _, timeline = replay.timeline(doc)
     again = next(e for _, e in timeline if isinstance(e, E.Stage) and e.stage == "understand" and e.state == "end")
-    keys = ("features", "signals", "removed", "added", "static_added", "nodes", "answered")
+    keys = ("features", "signals", "removed", "added", "nodes", "answered")
     assert {k: live[k] for k in keys} == {k: again.detail[k] for k in keys}
 
 

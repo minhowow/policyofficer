@@ -77,14 +77,14 @@ VOLATILE = re.compile(r'"(started|seconds)": [0-9.]+')
 
 def test_a_piped_stdout_gets_the_same_json_and_plain_stderr_has_no_escape(tmp_path, capsys, fake_judges):
     root = _repo(tmp_path)
-    assert cli.main(["review", str(root), "--no-static", "--model", "anthropic:m1", "--checker", "anthropic:m2"]) == 0
+    assert cli.main(["review", str(root), "--model", "anthropic:m1", "--checker", "anthropic:m2"]) == 0
     out, err = capsys.readouterr()
     doc = json.loads(out)
     # 표시기를 거치지 않은 review 와 키·구조·순서가 같다(실행마다 다른 시각만 다를 수 있다)
     inv = AgentJudge("m1", review_transport())
     chk = AgentJudge("m2", review_transport())
     limits = rv.Limits(concurrency=6)
-    direct = rv.review(root, inv, chk, limits, use_static=False, throttles=(rv.Throttle(6), rv.Throttle(6)))
+    direct = rv.review(root, inv, chk, limits, throttles=(rv.Throttle(6), rv.Throttle(6)))
     assert _shape(doc) == _shape(direct)
     assert list(doc) == ["review_version", "tool", "summary", "profile", "data_flow", "obligations", "checklist", "run"]
     assert VOLATILE.sub("", json.dumps(doc["checklist"])) == VOLATILE.sub("", json.dumps(direct["checklist"]))
@@ -145,7 +145,7 @@ def test_a_terminal_gets_frames_that_fit_80_columns_and_the_cursor_comes_back(tm
     pty = _Pty(cols=80)
     monkeypatch.setattr(sys, "stderr", pty.stream)
     monkeypatch.setattr(sys, "stdout", io.StringIO())
-    args = ["review", str(_repo(tmp_path)), "--no-static", "--concurrency", "3", "--model", "anthropic:m1"]
+    args = ["review", str(_repo(tmp_path)), "--concurrency", "3", "--model", "anthropic:m1"]
     assert cli.main(args) == 0
     raw = pty.text()
     doc = json.loads(sys.stdout.getvalue())  # stdout 이 터미널이 아니면 JSON
@@ -171,7 +171,7 @@ def test_no_color_drops_only_the_colours_and_ci_means_plain(tmp_path, monkeypatc
     pty = _Pty(cols=100)
     monkeypatch.setattr(sys, "stderr", pty.stream)
     monkeypatch.setattr(sys, "stdout", io.StringIO())
-    assert cli.main(["review", str(_repo(tmp_path)), "--no-static", "--no-rebut"]) == 0
+    assert cli.main(["review", str(_repo(tmp_path)), "--no-rebut"]) == 0
     raw = pty.text()
     assert "\x1b[2K" in raw and not SGR.search(raw)  # 다시 그리기는 하고 색은 없다
     summary = render(json.loads(sys.stdout.getvalue()), None, progress.color(), 80)
@@ -193,7 +193,7 @@ def test_ci_on_a_terminal_is_plain_end_to_end(tmp_path, monkeypatch, fake_judges
     pty = _Pty(cols=80)
     monkeypatch.setattr(sys, "stderr", pty.stream)
     monkeypatch.setattr(sys, "stdout", io.StringIO())
-    assert cli.main(["review", str(_repo(tmp_path)), "--no-static", "--no-rebut"]) == 0
+    assert cli.main(["review", str(_repo(tmp_path)), "--no-rebut"]) == 0
     raw = pty.text()
     assert "\x1b" not in raw and "[00:0" in raw
 
@@ -250,7 +250,7 @@ def test_a_failing_worker_stops_the_rest_from_starting():
 
 def test_replay_draws_without_the_network_and_counts_match(tmp_path, monkeypatch, capsys, fake_judges):
     root = _repo(tmp_path)
-    assert cli.main(["review", str(root), "--no-static", "-o", str(tmp_path / "r.json")]) == 0
+    assert cli.main(["review", str(root), "-o", str(tmp_path / "r.json")]) == 0
     saved = json.loads((tmp_path / "r.json").read_text(encoding="utf-8"))
     assert json.loads(capsys.readouterr().out) == saved  # -o 는 파일에도 쓴다
 
@@ -288,7 +288,7 @@ def test_a_terminal_stdout_gets_a_summary_and_the_json_goes_to_the_cache(tmp_pat
     monkeypatch.setattr(sys, "stdout", TtyOut())
     monkeypatch.setattr(sys, "stderr", io.StringIO())
     root = _repo(tmp_path)
-    assert cli.main(["review", str(root), "--no-static", "--no-rebut"]) == 0
+    assert cli.main(["review", str(root), "--no-rebut"]) == 0
     out = SGR.sub("", sys.stdout.getvalue())  # 터미널이면 색이 있다
     files = list((tmp_path / "cache" / "policyofficer" / "reviews").glob("repo-*.json"))
     assert len(files) == 1  # 분석하는 저장소에는 파일을 만들지 않는다
@@ -300,5 +300,5 @@ def test_a_terminal_stdout_gets_a_summary_and_the_json_goes_to_the_cache(tmp_pat
     assert len(rows) == todo - sum(c.get("group") == "goods" for c in doc["checklist"])
     # --json 이면 터미널이어도 JSON
     monkeypatch.setattr(sys, "stdout", TtyOut())
-    assert cli.main(["review", str(root), "--no-static", "--no-rebut", "--json"]) == 0
+    assert cli.main(["review", str(root), "--no-rebut", "--json"]) == 0
     assert json.loads(sys.stdout.getvalue())["review_version"] == 2

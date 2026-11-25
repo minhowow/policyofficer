@@ -169,7 +169,6 @@ def build_parser() -> argparse.ArgumentParser:
     rv.add_argument("--max-usd", type=float, default=5.0, help="저장소 한 번의 어림 금액 상한(공식 단가, 기본 5)")
     rv.add_argument("--time-limit", type=float, default=360.0, help="저장소 한 번의 시간 상한(초, 기본 360)")
     rv.add_argument("--concurrency", type=int, default=6, help="동시에 묻는 질문 수(429 를 받으면 줄인다, 기본 6)")
-    rv.add_argument("--no-static", action="store_true", help="내장 정책 팩의 정적 검사를 돌리지 않는다")
     rv.add_argument("--plan", action="store_true", help="모델을 부르지 않고 물을 의무와 질문 수만 낸다")
     rv.add_argument(
         "--reuse",
@@ -890,7 +889,7 @@ def cmd_review(args) -> int:
     if not root.is_dir():
         raise ConfigError(f"폴더가 아닙니다: {args.path}")
     if args.plan:
-        print(json.dumps(rv.plan(root, use_static=not args.no_static), ensure_ascii=False, indent=2))
+        print(json.dumps(rv.plan(root), ensure_ascii=False, indent=2))
         return EXIT_OK
     if args.max_usd <= 0 or args.time_limit <= 0 or args.concurrency < 1:
         raise ConfigError("--max-usd·--time-limit 는 0 보다, --concurrency 는 1 이상이어야 합니다")
@@ -943,7 +942,6 @@ def cmd_review(args) -> int:
                 investigator,
                 checker,
                 limits,
-                use_static=not args.no_static,
                 throttles=throttles,
                 reuse=reuse,
                 progress=shown.emit,
