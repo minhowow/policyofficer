@@ -36,8 +36,7 @@ policyofficer replay <결과.json>     # 저장한 결과를 다시 그린다(�
   13건 맞음(틀림 3 · 애매 4), '해당 없음' 20건 중 19건 맞음.
 - 저장소당 조사 비용은 평균 $0.16(반박 없이), 걸린 시간은 2~5분.
 
-**웹** https://plitsoft-sdp-web.vercel.app — 사례: [starthub-app](https://plitsoft-sdp-web.vercel.app/cases/starthub-app/) · [Excelerate](https://plitsoft-sdp-web.vercel.app/cases/excelerate/) ·
-[jobtalk](https://plitsoft-sdp-web.vercel.app/cases/jobtalk/) · [medeasy-frontend](https://plitsoft-sdp-web.vercel.app/cases/medeasy-frontend/)
+**웹** https://policyofficer.vercel.app — 사례: [jobtalk](https://policyofficer.vercel.app/r/vactor0911/jobtalk/)
 
 > 법률 자문이 아니며 위반 판정이 아니다. 검토가 필요한 곳과 근거 조문을 고를 뿐이다. 제재는 법에 적힌 최대치이고,
 > 실제 부과는 위반 사실과 규모에 따라 다르다.
