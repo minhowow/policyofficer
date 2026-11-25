@@ -105,7 +105,8 @@ def test_version_and_help(capsys):
     quick, review = cli.quick_parser().parse_args([]), cli.build_parser().parse_args(["review", "."])
     assert f"--model MODEL          조사 모델(기본 {quick.model})" in head
     assert f"--checker MODEL        반박 모델(기본 {quick.checker})" in head
-    assert f"(기본 {quick.max_usd:g} · review 는 {review.max_usd:g})" in head
+    assert f"--max-usd USD          금액 상한(달러, 기본 {quick.max_usd:g} · review 는 {review.max_usd:g})" in head
+    assert "어림" not in out  # 11/25 오너 지시
     assert "옵션 모두 보기: policyofficer . -h" in head
 
 

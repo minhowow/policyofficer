@@ -3,7 +3,7 @@
 표시기 셋을 자동으로 고른다(`--progress auto`, docker build 와 같은 이름).
   tty    stderr 가 터미널이고, CI 가 아니고(CI 가 비어 있지 않고 false·0 이 아니면 CI), TERM 이 dumb 가 아닐 때. 진행
          영역을 제자리에서 다시 그린다(초당 10번 이하): 단계 목록(✓ 끝남 ● 진행 중 ○ 남음), 진행 중인 질문(동시
-         질문 수만큼, 지금 읽는 파일·검색어), 끝난 질문의 수, 맨 아래 경과 시간·어림 금액·질문 k/N. 끝나면 진행
+         질문 수만큼, 지금 읽는 파일·검색어), 끝난 질문의 수, 맨 아래 경과 시간·금액·질문 k/N. 끝나면 진행
          영역을 지우고, 숨긴 커서는 어떻게 끝나든(정상, 오류, Ctrl+C) 되살린다.
   plain  그 밖의 모든 경우(CI, 웹 실행기, 파일로 받는 stderr). ANSI 제어 문자를 하나도 쓰지 않는다. 사건마다
          `[mm:ss] …` 한 줄. 질문 안의 도구 호출은 줄로 내지 않고 질문 끝 줄에 수만 적는다(웹 실행기는 stderr 의 끝
@@ -419,7 +419,7 @@ class State:
             if self.done
             else f"{E.STAGES.get(self.running() or '', '시작')}에서 멈춤"
         )
-        return f"{where} {dot} 지금까지 ${self.usd:.2f} {dot} {clock(elapsed)}"
+        return f"{where} {dot} ${self.usd:.2f} {dot} {clock(elapsed)}"
 
 
 # ── 표시기 ───────────────────────────────────────────────────────────
@@ -592,7 +592,7 @@ class Plain(Display):
 
     def _finish_line(self) -> None:
         dot = f" {self.g.dot} "
-        self._line(f"검토 끝{dot}질문 {self.st.done}개{dot}어림 ${self.st.usd:.2f}")
+        self._line(f"검토 끝{dot}질문 {self.st.done}개{dot}${self.st.usd:.2f}")
 
     def _stopped_line(self) -> None:
         self._line(self.st.stopped(self.elapsed(), self.g.dot))
@@ -688,7 +688,7 @@ class Tty(Display):
         elapsed = self.elapsed()
         b = st.begin
         foot = clock(elapsed) + (f" / {clock(b.seconds)}" if b else "")
-        foot += f"{dot}어림 ${st.usd:.2f}" + (f" / ${b.usd:.2f}" if b else "")
+        foot += f"{dot}${st.usd:.2f}" + (f" / ${b.usd:.2f}" if b else "")
         foot += f"{dot}전체 질문 {st.done}/{max(st.planned, st.done)}"
         room = rows - 1 - len(lines) - len(tail) - 3
         active = sorted(st.active.items())
@@ -762,7 +762,7 @@ class Tty(Display):
     def _finish_line(self) -> None:
         dot = f" {self.g.dot} "
         st = self.st
-        line = f"{self.g.done} 검토 끝{dot}질문 {st.done}개{dot}{clock(self.elapsed())}{dot}어림 ${st.usd:.2f}"
+        line = f"{self.g.done} 검토 끝{dot}질문 {st.done}개{dot}{clock(self.elapsed())}{dot}${st.usd:.2f}"
         self._write(self._style(fit(line, size(self.stream)[0] - 1, self.g.more), "ok") + "\n")
 
     def _stopped_line(self) -> None:

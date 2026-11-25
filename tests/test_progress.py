@@ -94,7 +94,7 @@ def test_a_piped_stdout_gets_the_same_json_and_plain_stderr_has_no_escape(tmp_pa
     assert all(re.match(r"\[\d\d:\d\d\] ", ln) for ln in lines[1:])
     assert any("의무별 조사 시작" in ln for ln in lines) and any("반박 끝" in ln for ln in lines)
     usd = doc["run"]["usd_estimate"]
-    assert lines[-1].endswith(f"검토 끝 · 질문 {len(doc['run']['questions'])}개 · 어림 ${usd:.2f}")
+    assert lines[-1].endswith(f"검토 끝 · 질문 {len(doc['run']['questions'])}개 · ${usd:.2f}")
 
 
 class _Pty:
@@ -225,7 +225,7 @@ def test_ctrl_c_clears_the_screen_and_says_where_it_stopped(tmp_path, monkeypatc
     raw = pty.text()
     assert "\x1b[?25h" in raw and "Traceback" not in raw
     last = ANSI.sub("", raw.split("\x1b[?25h")[-1]).strip()
-    assert re.fullmatch(r"■ 질문 21개 중 14개에서 멈춤 · 지금까지 \$0\.07 · \d+:\d\d", last), last
+    assert re.fullmatch(r"■ 질문 21개 중 14개에서 멈춤 · \$0\.07 · \d+:\d\d", last), last
     assert sys.stdout.getvalue() == ""
 
 

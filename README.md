@@ -72,7 +72,7 @@ policyofficer profile <폴더>               # 알아본 기능과 걸릴 수 �
 - **한 줄 명령과 review**: `policyofficer <폴더>` 는 `policyofficer review <폴더>` 와 같은 검토이고 기본값 셋만 다르다
   (`--batch bundle` 같은 코드 범위의 의무를 묶어 묻기, `--rebut-scope found` '코드에서 본 것'·'충족'만 반박,
   `--max-usd 2`). 명령과 같은 이름의 폴더는 `./review` 처럼 준다.
-- **상한**: 한 번의 어림 금액(`--max-usd`, 한 줄 명령 2 · review 5)과 시간(`--time-limit`, 기본 360초). 상한에 걸려 묻지 못한 의무는
+- **상한**: 한 번의 금액(`--max-usd`, 한 줄 명령 2 · review 5)과 시간(`--time-limit`, 기본 360초). 상한에 걸려 묻지 못한 의무는
   '모름'으로 싣고 까닭을 적는다. 모델은 `--model`(조사, 기본 claude-haiku-5-5)과 `--checker`(반박, 기본
   claude-sonnet-5-5)로 고른다.
 - **진행 화면**은 stderr 에 그린다(`--progress auto|tty|plain|none`). 터미널이면 제자리에서 다시 그리고, CI·파이프·

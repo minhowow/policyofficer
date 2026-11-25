@@ -106,7 +106,7 @@ def test_the_frame_says_what_was_chosen_and_searches_in_words(tty):
     assert "의무 9개를 골라 질문 0/4" in text
     search = next(r for r in rows if "검색" in r and "●" in r)
     assert "검색 생년 · birth · 나이" in search and "|" not in search and "\\b" not in search
-    assert rows[-1].strip() == "0:12 / 6:00 · 어림 $0.00 / $0.50 · 전체 질문 0/5"
+    assert rows[-1].strip() == "0:12 / 6:00 · $0.00 / $0.50 · 전체 질문 0/5"
     assert all(progress.width(r) <= 80 for r in rows)
 
 
@@ -159,7 +159,7 @@ def _doc(cites: list[str], searches: list[str], extra: dict | None = None) -> di
 
 def test_the_summary_first_line_counts_what_to_check_and_the_heavy_ones():
     out = render(_doc(["grounded"], []), None, False, 80)
-    assert out.splitlines()[0] == "✓ 검토 끝 · 확인할 것 3건(징역·과징금 2건) · 2:35 · 어림 $0.47 · 질문 20개"
+    assert out.splitlines()[0] == "✓ 검토 끝 · 확인할 것 3건(징역·과징금 2건) · 2:35 · $0.47 · 질문 20개"
     light = _doc([], [])
     light["checklist"] = [_item(3, "과태료")]
     assert render(light, None, False, 80).splitlines()[0].startswith("✓ 검토 끝 · 확인할 것 1건 · 2:35")
@@ -171,13 +171,16 @@ def test_the_tool_check_names_why_it_refused_and_sits_right_above_the_notes():
     parts = tool_check(_doc(cites, searches))
     assert parts == [
         "인용 54건 중 36건 받음(18건: 테스트 파일 8 · 너무 짧음 6 등)",
-        "'없다' 검색 57건 중 51건 같음(6건은 달라 근거로 안 씀)",
+        "'없다' 검색 57건 중 51건 같음(6건은 근거로 안 씀)",
     ]
     assert tool_check(_doc(["grounded"] * 53 + ["too-short"], [])) == ["인용 54건 중 53건 받음(1건: 너무 짧음)"]
     assert tool_check(_doc(["grounded"], ["match", "mismatch", "bad-pattern"])) == [
         "인용 1건 모두 받음",
         "'없다' 검색 3건 중 1건 같음(2건은 근거로 안 씀: 검색식 오류 1 · 결과가 다름 1)",  # 같은 수면 까닭 이름 순
     ]
+    assert tool_check(_doc(["grounded"], ["match", "outside-repo", "outside-repo"]))[1] == (
+        "'없다' 검색 3건 중 1건 같음(2건은 폴더 밖이라 근거로 안 씀)"  # 'mismatch' 말고는 까닭을 적는다
+    )
     assert tool_check(_doc([], [])) == []
     for cols in (None, 140, 80):
         out = render(_doc(cites, searches), "/tmp/x.json", False, cols).splitlines()

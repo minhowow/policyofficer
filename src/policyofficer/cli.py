@@ -43,7 +43,7 @@ DESCRIPTION = f"""폴더의 코드를 AI 가 읽어, 걸릴 수 있는 국내 �
 자주 쓰는 옵션:
   --model MODEL          조사 모델(기본 {MODEL})
   --checker MODEL        반박 모델(기본 {CHECKER})
-  --max-usd USD          어림 금액 상한, 달러(기본 {QUICK["max_usd"]:g} · review 는 {REVIEW_USD:g})
+  --max-usd USD          금액 상한(달러, 기본 {QUICK["max_usd"]:g} · review 는 {REVIEW_USD:g})
   옵션 모두 보기: policyofficer . -h"""
 
 
@@ -102,7 +102,7 @@ def _review_args(p: argparse.ArgumentParser, quick: bool) -> None:
         "기능·같은 코드 범위를 보는 의무 4개까지). 답과 관문은 어느 쪽이든 의무마다다",
     )
     p.add_argument(
-        "--max-usd", type=float, default=usd, metavar="USD", help=f"한 번의 어림 금액 상한(공식 단가, 기본 {usd:g})"
+        "--max-usd", type=float, default=usd, metavar="USD", help=f"한 번의 금액 상한(달러, 공식 단가, 기본 {usd:g})"
     )
     p.add_argument("--time-limit", type=float, default=360.0, help="한 번의 시간 상한(초, 기본 360)")
     p.add_argument("--concurrency", type=int, default=6, help="동시에 묻는 질문 수(429 를 받으면 줄인다, 기본 6)")

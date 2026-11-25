@@ -1,6 +1,6 @@
 """review 결과(JSON)의 사람이 읽는 요약. stdout 이 터미널일 때 JSON 대신 낸다(전체 JSON 은 파일로 저장한다).
 
-상태별 개수, '확인할 것' 목록(법·조문·제목·인용 file:line), 걸린 시간, 어림 금액, 저장한 JSON 의 경로. 목록은 갈래
+상태별 개수, '확인할 것' 목록(법·조문·제목·인용 file:line), 걸린 시간, 금액, 저장한 JSON 의 경로. 목록은 갈래
 (코드에서 본 것 → 저장소 밖 → 해당 여부) 안에서 제재 등급 순(SANCTION_ORDER), 같은 등급이면 정액 상한(max_won)이 큰
 것이 먼저다. 항목에 제재(sanction)가 없으면 체크리스트 순서(rank) 그대로다.
 
@@ -42,7 +42,7 @@ CITE_WHY = {
 }
 """관문이 인용을 받지 않은 까닭(why)의 이름."""
 SEARCH_WHY = {
-    "mismatch": ("달라", "결과가 다름"),
+    "mismatch": ("", "결과가 다름"),  # 한 가지 까닭이면 적지 않는다('같음'이 이미 말한다)
     "bad-pattern": ("검색식이 틀려", "검색식 오류"),
     "outside-repo": ("폴더 밖이라", "폴더 밖"),
     "no-count": ("수를 대지 않아", "수 없음"),
@@ -93,7 +93,7 @@ def _top(counts: dict[str, int], names: dict[str, str], dot: str) -> str:
 
 
 def tool_check(doc: dict, dot: str = " · ") -> list[str]:
-    """'도구 대조 · 인용 54건 중 53건 받음(1건: 너무 짧음) · '없다' 검색 57건 중 51건 같음(6건은 달라 근거로 안 씀)'
+    """'도구 대조 · 인용 54건 중 53건 받음(1건: 너무 짧음) · '없다' 검색 57건 중 51건 같음(6건은 근거로 안 씀)'
     의 조각들('도구 대조' 뒤). 대조한 것이 없으면 빈 목록. 수는 run.citations·citations_rejected·searches·
     searches_rejected, 까닭은 결과에 남은 인용·검색의 why 에서 센다."""
     from collections import Counter
@@ -120,7 +120,8 @@ def tool_check(doc: dict, dot: str = " · ") -> list[str]:
         elif len(why) == 1:
             k = next(iter(why))
             phrase = SEARCH_WHY[k][0] if k in SEARCH_WHY else f"{k}(으)로"
-            parts.append(f"'없다' 검색 {n}건 중 {n - bad}건 같음({bad}건은 {phrase} 근거로 안 씀)")
+            lead = f"{phrase} " if phrase else ""
+            parts.append(f"'없다' 검색 {n}건 중 {n - bad}건 같음({bad}건은 {lead}근거로 안 씀)")
         else:
             names = {k: v[1] for k, v in SEARCH_WHY.items()}
             parts.append(f"'없다' 검색 {n}건 중 {n - bad}건 같음({bad}건은 근거로 안 씀: {_top(why, names, dot)})")
@@ -209,7 +210,7 @@ def render(doc: dict, saved: str | Path | None, color: bool, cols: int | None, u
         if c["status"] in TO_CHECK and c.get("group") != "goods" and (c.get("sanction") or {}).get("class") in HEAVY
     )
     found = f"확인할 것 {todo_n}건" + (f"({'·'.join(HEAVY)} {heavy_n}건)" if heavy_n else "")
-    head = f"{g.done} 검토 끝{dot}{found}{dot}{clock(run.get('seconds', 0))}{dot}어림 ${usd:.2f}{dot}질문 {asked}개"
+    head = f"{g.done} 검토 끝{dot}{found}{dot}{clock(run.get('seconds', 0))}{dot}${usd:.2f}{dot}질문 {asked}개"
     add(head, "bold")
     add()
     counts = {s: sum(1 for c in checklist if c["status"] == s) for s in ORDER}
