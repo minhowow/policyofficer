@@ -14,13 +14,13 @@ from __future__ import annotations
 
 import fnmatch
 import json
-import os
 import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from policyofficer.discover import project_file_set, project_files
 from policyofficer.egress import is_secret_file, marks, mask
 from policyofficer.judge.http import Transport, Unavailable
 
@@ -31,7 +31,6 @@ MODELS = {
     "opus": "claude-opus-5-5",
 }
 MAX_TOKENS = 8192
-SKIP_DIRS = {".git", "node_modules", "dist", "build", ".next", "out", "coverage", ".turbo", ".cache", "vendor", ".yarn"}
 READ_LINES, READ_CHARS, SEARCH_HITS, LIST_MAX, FILE_MAX = 300, 30_000, 60, 400, 1_000_000
 
 TOOLS = [
@@ -80,12 +79,16 @@ SYSTEM = (
 
 class RepoTools:
     """저장소 폴더 하나에 갇힌 읽기 전용 도구. 결과는 나가기 전에 egress.mask 를 거치고, 비밀값 파일은 읽지 않는다.
+    보는 파일은 "이 프로젝트의 파일"(discover.project_files: git 이 아는 파일, 생성물 폴더 빼고)뿐이다. 목록·검색·셈은
+    그 집합만 돌고, 읽기는 집합 밖의 파일과 UTF-8 로 읽히지 않는 파일을 읽지 않고 까닭을 돌려준다.
 
     읽은 파일(`read`), 검색 결과로 줄이 나간 파일(`matched`), 파일 목록으로 나간 이름 수(`listed`), 읽지 않은 비밀
     파일(`refused`), 가린 수(`masked`)를 모아 두었다가 전송 기록에 싣는다."""
 
     def __init__(self, root: Path) -> None:
         self.root = root.resolve()
+        self.files = project_files(self.root)
+        self._known = project_file_set(self.root)
         self.read: list[str] = []
         self.searched: list[str] = []
         self.matched: list[str] = []
@@ -100,12 +103,12 @@ class RepoTools:
         return p
 
     def _walk(self, base: Path):
-        for dirpath, dirnames, filenames in os.walk(base):
-            dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS)
-            for name in sorted(filenames):
-                f = Path(dirpath) / name
-                if not f.is_symlink():
-                    yield f
+        """`base` 아래의 프로젝트 파일(os.walk 차례)."""
+        if base == self.root:
+            yield from (self.root / r for r in self.files)
+            return
+        prefix = base.relative_to(self.root).as_posix() + "/"
+        yield from (self.root / r for r in self.files if r.startswith(prefix))
 
     def _out(self, text: str) -> str:
         """나가는 글. 이미 가린 글이라 가린 수만 센다."""
@@ -140,9 +143,15 @@ class RepoTools:
             if rel not in self.refused:
                 self.refused.append(rel)
             return "비밀값이 들어 있을 수 있는 파일이라 읽지 않는다"
+        if rel not in self._known:
+            return "이 프로젝트의 파일이 아니라 읽지 않는다(git 이 무시하는 파일, node_modules·dist 같은 생성물 폴더)"
         if p.stat().st_size > FILE_MAX:
             return "파일이 너무 크다(1MB 초과)"
-        lines = self._masked_lines(p.read_text(encoding="utf-8", errors="replace"))
+        try:
+            text = p.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            return "UTF-8 로 읽히지 않는 파일이라 읽지 않는다(이미지·데이터 파일 등)"
+        lines = self._masked_lines(text)
         start = max(1, int(start_line or 1))
         end = min(len(lines), int(end_line) if end_line else start + READ_LINES - 1, start + READ_LINES - 1)
         body, size = [], 0

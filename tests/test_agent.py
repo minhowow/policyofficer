@@ -415,3 +415,97 @@ def test_http_transport_tells_a_refused_request_from_an_unreachable_service(monk
 )
 def test_roles(rel, text, role):
     assert classify(rel, text) is role
+
+
+# ── 도구가 보는 파일: 이 프로젝트의 파일 ──────────────────────────────
+
+
+def _git(root: Path, *args: str) -> None:
+    import subprocess
+
+    subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True)
+
+
+@pytest.fixture
+def local(tmp_path: Path) -> Path:
+    """로컬 체크아웃 같은 폴더: 추적 파일, 아직 add 하지 않은 새 파일, .gitignore 에 든 데이터·가상환경·로그."""
+    root = tmp_path / "app"
+    files = {
+        ".gitignore": ".venv/\n*.log\ndata/\n",
+        "src/signup.ts": "export const signup = (birth) => saveUser({ birth })\n",
+        "src/new.ts": "export const fresh = 'not yet added'\n",
+        ".venv/lib/site.py": "secret_password = 'hunter2hunter2'\n",
+        "data/users.csv": "name,birth\nkim,2010-01-01\n",
+        "server.log": "saveUser called\n",
+        "node_modules/pkg/index.js": "module.exports = 'saveUser'\n",
+    }
+    for rel, text in files.items():
+        (root / rel).parent.mkdir(parents=True, exist_ok=True)
+        (root / rel).write_text(text, encoding="utf-8")
+    (root / "src" / "logo.png").write_bytes(b"\x89PNG\r\n\x1a\n\xff\xfe\x00")
+    (root / "src" / "link.ts").symlink_to(root / "src" / "signup.ts")
+    _git(root, "init", "-q")
+    _git(root, "add", ".gitignore", "src/signup.ts", "src/logo.png")
+    return root
+
+
+def test_tools_see_only_the_project_files(local):
+    from policyofficer.discover import project_files
+
+    assert project_files(local) == (".gitignore", "src/logo.png", "src/new.ts", "src/signup.ts")
+    t = RepoTools(local)
+    listed = t.call("list_files", {}).splitlines()
+    assert listed == [".gitignore", "src/logo.png", "src/new.ts", "src/signup.ts"]
+    hits = t.search("saveUser|password")
+    assert hits.startswith("src/signup.ts:1:") and ".venv" not in hits and "server.log" not in hits
+    assert "node_modules" not in hits and t.count("saveUser") == 1
+    assert "이 프로젝트의 파일이 아니라" in t.call("read_file", {"path": "data/users.csv"})
+    assert "이 프로젝트의 파일이 아니라" in t.call("read_file", {"path": ".venv/lib/site.py"})
+    assert "fresh" in t.call("read_file", {"path": "src/new.ts"})  # 아직 add 하지 않은 새 파일은 읽는다
+    assert "UTF-8 로 읽히지 않는" in t.call("read_file", {"path": "src/logo.png"})
+    assert t.read == ["src/new.ts"]
+
+
+def test_the_gate_refuses_citations_of_ignored_files(local):
+    from policyofficer.discover import project_file_set
+
+    cites = [
+        {"file": "server.log", "line": 1, "text": "saveUser called"},
+        {"file": "src/new.ts", "line": 1, "text": "export const fresh = 'not yet added'"},
+        {"file": "src/signup.ts", "line": 1, "text": "export const signup = (birth) => saveUser({ birth })"},
+    ]
+    assert [(r["ok"], r["why"]) for r in gate(local, cites, project_file_set(local))] == [
+        (False, "outside-repo"),
+        (True, "grounded"),
+        (True, "grounded"),
+    ]
+    assert [r["ok"] for r in rv.check(local, cites)] == [False, True, True]
+
+
+def test_a_folder_that_is_not_a_git_repository_is_walked_without_generated_folders(tmp_path):
+    from policyofficer.discover import project_files
+
+    for rel in ("a.ts", "lib/b.ts", ".venv/x.py", "node_modules/m/i.js", "__pycache__/c.pyc", "build/out.js"):
+        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / rel).write_text("x\n", encoding="utf-8")
+    assert project_files(tmp_path) == ("a.ts", "lib/b.ts")
+
+
+def test_a_worktree_does_not_show_its_git_file(local, tmp_path):
+    from policyofficer.discover import project_files
+
+    _git(local, "-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "-m", "x")
+    wt = tmp_path / "wt"
+    _git(local, "worktree", "add", "-q", str(wt))
+    assert (wt / ".git").is_file() and ".git" not in project_files(wt)
+    assert "src/signup.ts" in project_files(wt)
+
+
+def test_the_set_is_computed_once_per_run(local):
+    from policyofficer.discover import for_run, project_files
+
+    with for_run(local):
+        before = project_files(local)
+        (local / "src" / "later.ts").write_text("x\n", encoding="utf-8")
+        assert project_files(local) == before  # 한 번의 review 안에서는 같은 집합
+    assert "src/later.ts" in project_files(local)

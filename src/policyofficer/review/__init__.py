@@ -76,6 +76,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from policyofficer import __version__
+from policyofficer.discover import for_run, project_file_set, project_files
 from policyofficer.evidence import gate
 from policyofficer.judge.agent import MODELS, AgentAnswer, AgentJudge, RepoTools
 from policyofficer.profile import load_duties, load_features, load_sanctions, profile
@@ -239,7 +240,8 @@ class Limits:
 def check(root: Path, citations: list[dict]) -> list[dict]:
     """인용 관문(evidence.gate)에 더해, 시험·픽스처·설정 파일의 줄은 받지 않는다(why: test-file). 설정 파일이라도
     주소나 호스트 값이 글자 그대로 있는 줄은 받는다(why: config-value. 11/13 실측: Sentry DSN 줄을 받지 않았다)."""
-    out, root = gate(root, citations), root.resolve()
+    root = root.resolve()
+    out = gate(root, citations, project_file_set(root))
     for c in out:
         if c["ok"]:
             # 관문은 '..' 이 든 경로를 풀어 파일을 찾는다. 같은 파일을 저장소 기준 경로로 읽는다(11/13 실측:
@@ -331,12 +333,8 @@ def lacks(root: Path, platforms: list[str]) -> str | None:
         return "screen"
     if not platforms or "server" in platforms:
         return None
-    from policyofficer.judge.agent import SKIP_DIRS
-
-    for _dir, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
-        if any(n.endswith(SERVER_LANGS) for n in filenames):
-            return None
+    if any(rel.endswith(SERVER_LANGS) for rel in project_files(root)):
+        return None
     return "server"
 
 
@@ -1323,9 +1321,22 @@ def review(
     progress: E.Sink = E.ignore,
 ) -> dict:
     """`reuse` 는 같은 저장소·커밋의 앞 review 결과다. 주면 이해 단계를 묻지 않고 그 결과를 쓴다. `progress` 는 진행
-    사건(review/events)을 받는다. 사건은 결과에 영향을 주지 않는다."""
-    limits = limits or Limits()
+    사건(review/events)을 받는다. 사건은 결과에 영향을 주지 않는다. 도구와 관문이 보는 파일 집합은 이 안에서 한 번
+    구한다(discover.for_run)."""
     root = root.resolve()
+    with for_run(root):
+        return _review(root, investigator, checker, limits or Limits(), throttles, reuse, progress)
+
+
+def _review(
+    root: Path,
+    investigator: AgentJudge,
+    checker: AgentJudge,
+    limits: Limits,
+    throttles: tuple[Throttle, ...],
+    reuse: dict | None,
+    progress: E.Sink,
+) -> dict:
     t0 = time.monotonic()
     for j in (investigator, checker):
         j.deadline = t0 + limits.seconds
@@ -1503,8 +1514,6 @@ def _report(run: Run, prof, und, features, listed, checklist, seconds, throttles
 
 def build_judge(spec: str, throttle: Throttle, env: dict | None = None) -> AgentJudge:
     """`anthropic:<모델>` → 동시 요청 수를 `throttle` 로 묶은 에이전트 판정기. 키는 ANTHROPIC_API_KEY 에서 읽는다."""
-    import os
-
     from policyofficer.judge.http import http_transport
 
     kind, _, model = spec.partition(":")

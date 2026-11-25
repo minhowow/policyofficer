@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Collection
 from enum import Enum
 from pathlib import Path
 
@@ -175,15 +176,17 @@ def locate(evidence: str, code: str) -> list[int]:
     return found
 
 
-def gate(root: Path, citations: list[dict]) -> list[dict]:
-    """인용마다 관문 결과. [{file, line, text, ok, why}]"""
+def gate(root: Path, citations: list[dict], allowed: Collection[str] | None = None) -> list[dict]:
+    """인용마다 관문 결과. [{file, line, text, ok, why}]. `allowed` 를 주면(폴더 기준 상대 경로) 그 밖의 파일은
+    저장소 밖과 같이 받지 않는다(why: outside-repo. git 이 무시하는 파일, 생성물 폴더)."""
     root = root.resolve()
     out = []
     for c in citations:
         f, text = str(c.get("file", "")), str(c.get("text", ""))
         rec = {"file": f, "line": c.get("line"), "text": text, "ok": False, "why": ""}
         p = (root / f.lstrip("/")).resolve()
-        if p != root and root not in p.parents:
+        outside = p != root and root not in p.parents
+        if outside or allowed is not None and p.is_file() and p.relative_to(root).as_posix() not in allowed:
             rec["why"] = "outside-repo"
         elif not p.is_file():
             rec["why"] = "no-such-file"
