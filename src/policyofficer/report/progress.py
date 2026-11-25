@@ -1,4 +1,4 @@
-"""review·replay 의 진행 표시. review 가 내는 사건(review/events)을 받아 stderr 에 그린다. 계산 코드와 섞지 않는다.
+"""review 의 진행 표시. review 가 내는 사건(review/events)을 받아 stderr 에 그린다. 계산 코드와 섞지 않는다.
 
 표시기 셋을 자동으로 고른다(`--progress auto`, docker build 와 같은 이름).
   tty    stderr 가 터미널이고, CI 가 아니고(CI 가 비어 있지 않고 false·0 이 아니면 CI), TERM 이 dumb 가 아닐 때. 진행
@@ -542,16 +542,6 @@ class Plain(Display):
         m, s = divmod(int(max(0.0, self.elapsed())), 60)
         self._write(f"[{m:02d}:{s:02d}] {text}\n")
 
-    def _begin(self, b: E.Begin) -> None:
-        if b.replay is not None:
-            check = model_name(b.checker) if b.checker else "끔"
-            self._write(
-                f"기록 재생 {self.g.dot} 모델 호출 없음 {self.g.dot} 원래 {clock(b.replay)} {self.g.dot} "
-                f"조사 {model_name(b.model)} {self.g.dot} 반박 {check}\n"
-            )
-        else:
-            super()._begin(b)
-
     def _on(self, ev: E.Event) -> None:
         g, st = self.g, self.st
         dot = f" {g.dot} "
@@ -626,11 +616,9 @@ class Tty(Display):
         cols = size(self.stream)[0] - 1
         dot = f" {self.g.dot} "
         rows: list[tuple[str, str | None]] = []
-        if b.replay is not None:
-            rows.append((f"기록 재생{dot}모델 호출 없음{dot}원래 {clock(b.replay)}", "bold"))
         commit = f" @ {b.commit[:7]}" if b.commit else ""
         repo = clean(repo_label(b.repo))
-        rows.append((f"policyofficer review{dot}{repo}{commit}", None if b.replay is not None else "bold"))
+        rows.append((f"policyofficer review{dot}{repo}{commit}", "bold"))
         check = clean(model_label(b.checker)) if b.checker else "끔"
         rows.append((f"조사 {clean(model_label(b.model))}{dot}반박 {check}", "dim"))  # 상한은 바닥 줄에 있다
         if b.egress:
@@ -702,8 +690,6 @@ class Tty(Display):
         foot = clock(elapsed) + (f" / {clock(b.seconds)}" if b else "")
         foot += f"{dot}어림 ${st.usd:.2f}" + (f" / ${b.usd:.2f}" if b else "")
         foot += f"{dot}전체 질문 {st.done}/{max(st.planned, st.done)}"
-        if b and b.replay is not None:
-            foot += f"{dot}기록 재생"
         room = rows - 1 - len(lines) - len(tail) - 3
         active = sorted(st.active.items())
         body: list[list] = []
@@ -784,7 +770,7 @@ class Tty(Display):
         self._write(self._style(fit(line, size(self.stream)[0] - 1, self.g.more), "warn") + "\n")
 
 
-def make(mode: str, stream, clock_=None, env: dict | None = None) -> Display:
+def make(mode: str, stream, env: dict | None = None) -> Display:
     """`mode`(auto·tty·plain·none)에 맞는 표시기."""
     kind = choose(mode, stream, env)
-    return {"tty": Tty, "plain": Plain}.get(kind, Display)(stream, clock_, env)
+    return {"tty": Tty, "plain": Plain}.get(kind, Display)(stream, env=env)

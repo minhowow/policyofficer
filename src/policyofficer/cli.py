@@ -1,5 +1,5 @@
 """명령줄 진입점. `policyofficer [폴더]` 는 그 폴더를 검토하고(review 와 같고 기본값 셋이 다르다), 첫 인자가 명령
-이름이면 그 명령이다(profile · review · replay).
+이름이면 그 명령이다(profile · review).
 
 종료 코드: 0 끝까지 돌았다 · 2 도구 오류(폴더가 없음, 인자가 잘못됨, 키가 없음 등) · 130 Ctrl+C.
 """
@@ -55,11 +55,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="폴더의 코드를 읽어 의무마다 근거를 찾아 체크리스트를 낸다(한 줄 명령과 같고 기본값이 다르다)",
     )
     _review_args(rv, quick=False)
-
-    rp = sub.add_parser("replay", help="저장된 review 결과로 진행 화면을 다시 그린다(모델·네트워크 호출 0회)")
-    rp.add_argument("file", help="review 결과 JSON")
-    rp.add_argument("--speed", type=float, default=4.0, help="원래보다 몇 배 빠르게(기본 4)")
-    _progress_args(rp)
     return p
 
 
@@ -145,7 +140,7 @@ def _redact(value: str) -> str:
     return f"{parts.scheme}://{parts.netloc.rpartition('@')[2]}{parts.path}"
 
 
-# ── profile · review · replay ──────────────────────────────────────────────
+# ── profile · review ──────────────────────────────────────────────
 
 
 def _folder(path: str) -> Path:
@@ -276,62 +271,9 @@ def _display_error(shown) -> None:
         )
 
 
-def cmd_replay(args) -> int:
-    """저장된 review 결과로 진행 사건을 다시 만들어 같은 표시기로 그린다. 모델·네트워크를 부르지 않는다."""
-    import dataclasses
-
-    from policyofficer.report import progress
-    from policyofficer.review import replay
-
-    path = Path(args.file)
-    try:
-        doc = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as e:
-        raise ConfigError(f"review 결과를 읽지 못했습니다: {e}") from e
-    if not isinstance(doc, dict) or "checklist" not in doc or "run" not in doc:
-        raise ConfigError(f"review 결과가 아닙니다(checklist·run 이 없음): {args.file}")
-    if not args.speed > 0:
-        raise ConfigError("--speed 는 0 보다 커야 합니다")
-    from policyofficer.profile import load_duties
-    from policyofficer.review import with_highlights, with_tables
-
-    duties = {d["id"]: d for d in load_duties()}
-    for c in doc["checklist"]:
-        with_tables(c, duties)  # 제재·조문 표기는 지금 표의 글로 다시 그린다(판정과 인용은 파일 그대로)
-    with_highlights(doc)  # 먼저 볼 것이 없는 옛 결과에도 같은 함수로
-    begin, events = replay.timeline(doc)
-    begin = dataclasses.replace(begin, repo=_replay_name(path, begin.commit))
-    total = float(doc["run"].get("seconds") or 0.0)
-    start = [0.0]
-    shown = progress.make(args.progress, sys.stderr, clock_=lambda: (time.monotonic() - start[0]) * args.speed)
-    with shown:
-        start[0] = time.monotonic()
-        shown.begin(begin)
-        try:
-            replay.play(events, shown.emit, args.speed, total)
-        except KeyboardInterrupt:
-            if shown.interrupted():
-                return 130
-            raise
-        shown.finish(line=not sys.stdout.isatty())
-    _display_error(shown)
-    _print_summary(doc, path)
-    return EXIT_OK
-
-
-def _replay_name(path: Path, commit: str | None) -> str:
-    """결과 파일 이름에서 저장소 이름. review 가 두는 '<저장소>-<커밋 12자>.json' 의 커밋과 '<이름>.review.json' 의
-    '.review' 를 뗀다."""
-    name = path.stem.removesuffix(".review")
-    if commit and name.endswith(f"-{commit[:12]}"):
-        name = name[: -len(commit[:12]) - 1]
-    return name or path.stem
-
-
 COMMANDS = {
     "profile": cmd_profile,
     "review": cmd_review,
-    "replay": cmd_replay,
 }
 
 

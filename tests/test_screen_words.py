@@ -1,23 +1,17 @@
 """포스터·영상에 실리는 화면의 말(2026-11-25): 단계 이름, 머리 세 줄, 검색 낱말, 바닥 줄, 기능 파악 줄, 끝 요약의 첫
-줄과 도구 대조, 기록 재생이 쓰는 표의 글. 화면만 바뀌고 JSON 은 그대로다. 모델 호출 0회."""
+줄과 도구 대조. 화면만 바뀌고 JSON 은 그대로다. 모델 호출 0회."""
 
 from __future__ import annotations
 
 import io
-import json
 import re
-from pathlib import Path
 
 import pytest
 
-from policyofficer import cli, profile
 from policyofficer import review as rv
-from policyofficer.judge.agent import AgentJudge
-from policyofficer.judge.fake import review_transport
 from policyofficer.report import progress
 from policyofficer.report.review_text import NOTE, SANCTION_NOTE, render, tool_check
 from policyofficer.review import events as E
-from policyofficer.review import replay
 
 ANSI = re.compile(r"\x1b\[[?0-9;]*[A-Za-z]")
 BEGIN = E.Begin(
@@ -66,18 +60,6 @@ def test_the_header_is_three_short_lines(tty):
         "읽은 코드가 api.anthropic.com 으로 나감 · 비밀값 가림 · .env 등 안 읽음",
         "",
     ]
-
-
-def test_a_replay_header_keeps_its_first_line_and_has_no_egress_line(tty):
-    d, buf = tty()
-    with d:
-        head = _header(d, buf, E.Begin(**{**BEGIN.__dict__, "egress": None, "replay": 155.1, "checker": None}))
-    assert head[:3] == [
-        "기록 재생 · 모델 호출 없음 · 원래 2:35",
-        "policyofficer review · jobtalk @ bbfb3ab",
-        "조사 Claude Haiku 5.5 · 반박 끔",
-    ]
-    assert len(head) == 4
 
 
 @pytest.mark.parametrize(
@@ -143,54 +125,6 @@ def test_understood_counts_what_the_model_took_out_and_added():
     features = [{"sources": ["signal", "model"]}] * 4 + [{"sources": ["signal"], "removed": {}}] * 2
     features += [{"sources": ["signal"]}, {"sources": ["model"]}]
     assert rv.feature_counts(features) == {"features": 6, "signals": 7, "removed": 2, "added": 1}
-
-
-def _repo(tmp_path: Path) -> Path:
-    root = tmp_path / "repo"
-    (root / "src").mkdir(parents=True)
-    (root / "package.json").write_text(json.dumps({"dependencies": {"express": "^4.0.0"}}), encoding="utf-8")
-    (root / "src" / "signup.ts").write_text(
-        'router.post("/signup", async (req, res) => {\n  const { email, name, birthDate } = req.body;\n});\n',
-        encoding="utf-8",
-    )
-    return root
-
-
-def _review(tmp_path: Path, events: list | None = None) -> dict:
-    inv, chk = AgentJudge("claude-haiku-5-5", review_transport()), AgentJudge("claude-sonnet-5-5", review_transport())
-    sink = events.append if events is not None else E.ignore
-    return rv.review(_repo(tmp_path), inv, chk, rv.Limits(concurrency=4), progress=sink)
-
-
-def test_replay_counts_the_understanding_the_same_way_as_the_run(tmp_path):
-    seen: list = []
-    doc = _review(tmp_path, seen)
-    live = next(e for e in seen if isinstance(e, E.Stage) and e.stage == "understand" and e.state == "end").detail
-    _, timeline = replay.timeline(doc)
-    again = next(e for _, e in timeline if isinstance(e, E.Stage) and e.stage == "understand" and e.state == "end")
-    keys = ("features", "signals", "removed", "added", "nodes", "answered")
-    assert {k: live[k] for k in keys} == {k: again.detail[k] for k in keys}
-
-
-def test_replay_draws_old_results_with_todays_table(tmp_path, monkeypatch, capsys):
-    """11/24 에 고친 표의 글(제재 label, 겹친 '시행령')이 옛 결과 파일을 재생해도 나오지 않는다."""
-    doc = _review(tmp_path)
-    duties = {d["id"]: d for d in profile.load_duties()}
-    decree = duties["aiact-decree-27-1"]
-    old = {**doc["checklist"][0], "duty": decree["id"], "status": "check-applicability", "rank": 99}
-    doc["checklist"].append(old)
-    for c in doc["checklist"]:
-        c["article"] = "시행령 " + duties[c["duty"]]["article"]  # 옛 표의 모양
-        c["sanction"] = {**c.get("sanction", {}), "class": "명령", "label": "시정명령을 어기면 과태료 3천만원"}
-    (tmp_path / "old.json").write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
-    monkeypatch.delenv("CI", raising=False)
-    assert cli.main(["replay", str(tmp_path / "old.json"), "--speed", "1000", "--progress", "plain"]) == 0
-    out, err = capsys.readouterr()
-    for text in (out, err):
-        assert "시정명령을 어기면" not in text and "시행령 시행령" not in text
-    assert f"{decree['law_short']} {progress.article(decree['article'])}" in out
-    assert profile.load_sanctions()[decree["id"]]["label"] in out and "어기면" not in out
-    assert "질문 1 보냄 · 기능 파악" in err
 
 
 def _item(rank: int, cls: str, status: str = "seen-in-code") -> dict:

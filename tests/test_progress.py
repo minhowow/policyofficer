@@ -1,4 +1,4 @@
-"""review·replay 의 진행 표시와 출력: 가짜 판정자(judge/fake.review_transport)로 CLI 를 끝까지 돌린다. 모델 호출 0회."""
+"""review 의 진행 표시와 출력: 가짜 판정자(judge/fake.review_transport)로 CLI 를 끝까지 돌린다. 모델 호출 0회."""
 
 from __future__ import annotations
 
@@ -7,7 +7,6 @@ import io
 import json
 import os
 import re
-import socket
 import struct
 import sys
 import termios
@@ -23,7 +22,6 @@ from policyofficer.judge.fake import review_transport
 from policyofficer.report import progress
 from policyofficer.report.review_text import render
 from policyofficer.review import events as E
-from policyofficer.review.prompts import STATUS_LABEL
 
 FILES = {
     "package.json": json.dumps({"dependencies": {"express": "^4.0.0"}}),
@@ -248,32 +246,15 @@ def test_a_failing_worker_stops_the_rest_from_starting():
     assert rv.parallel(lambda i: i * 2, [3, 1, 2], 2) == [6, 2, 4]
 
 
-def test_replay_draws_without_the_network_and_counts_match(tmp_path, monkeypatch, capsys, fake_judges):
+def test_output_also_writes_the_file_and_plain_shows_each_question(tmp_path, capsys, fake_judges):
     root = _repo(tmp_path)
-    assert cli.main(["review", str(root), "-o", str(tmp_path / "r.json")]) == 0
-    saved = json.loads((tmp_path / "r.json").read_text(encoding="utf-8"))
-    assert json.loads(capsys.readouterr().out) == saved  # -o 는 파일에도 쓴다
-
-    def no_network(*a, **kw):
-        raise AssertionError("기록 재생이 네트워크를 불렀다")
-
-    monkeypatch.setattr(socket, "socket", no_network)
-    monkeypatch.setattr(socket, "create_connection", no_network)
-    monkeypatch.setattr("urllib.request.urlopen", no_network)
-    assert cli.main(["replay", str(tmp_path / "r.json"), "--speed", "1000"]) == 0
+    assert cli.main(["review", str(root), "-o", str(tmp_path / "r.json"), "--progress", "plain"]) == 0
     out, err = capsys.readouterr()
-    assert "\x1b" not in out + err
-    assert err.splitlines()[0].startswith("기록 재생 · 모델 호출 없음 · 원래 ")
-    shown = {}
-    for line in out.splitlines():
-        for status, label in STATUS_LABEL.items():
-            m = re.fullmatch(rf"  {re.escape(label)}\s+(\d+)", line)
-            if m:
-                shown[status] = int(m.group(1))
-    assert shown == {s: n for s, n in saved["summary"]["counts"].items() if n}
+    saved = json.loads((tmp_path / "r.json").read_text(encoding="utf-8"))
+    assert json.loads(out) == saved  # -o 는 파일에도 쓴다
+    assert "\x1b" not in err
     n = len(saved["run"]["questions"])
-    assert f"질문 {n}개" in out.splitlines()[0]
-    # 같은 사건: 질문마다 보냄·끝이 한 줄씩
+    # 질문마다 보냄·끝이 한 줄씩
     assert sum("보냄 · " in ln for ln in err.splitlines()) == n
     assert sum(re.search(r"질문 \d+ 끝 · ", ln) is not None for ln in err.splitlines()) == n
 

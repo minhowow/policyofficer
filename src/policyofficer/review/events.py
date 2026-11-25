@@ -2,7 +2,6 @@
 
 사건은 실제 코드가 도는 순서대로 나온다. 의무별 조사·반박·직접 대조는 의무 묶음마다 이어서 돌아 서로 겹친다(묶음 하나의
 조사 답이 오면 바로 인용을 대조하고, 그 묶음의 반박을 묻는다). 질문은 Run.ask 한 번(run.questions 의 기록 하나)이다.
-기록 재생(review/replay)도 저장된 결과에서 같은 사건을 만들어 같은 표시기로 그린다.
 """
 
 from __future__ import annotations
@@ -23,7 +22,7 @@ STAGES = {
 
 @dataclass(frozen=True)
 class Begin:
-    """검토 하나의 머리. CLI(또는 기록 재생)가 표시기에 직접 준다."""
+    """검토 하나의 머리. CLI 가 표시기에 직접 준다."""
 
     repo: str
     commit: str | None
@@ -35,9 +34,7 @@ class Begin:
     seconds: float
     concurrency: int
     egress: str | None = None
-    """모델이 읽은 코드가 나가는 곳(가린 주소). 기록 재생은 None."""
-    replay: float | None = None
-    """기록 재생이면 원래 걸린 초."""
+    """모델이 읽은 코드가 나가는 곳(가린 주소). None 이면 그 줄을 그리지 않는다."""
 
 
 @dataclass(frozen=True)

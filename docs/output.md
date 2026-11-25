@@ -8,19 +8,21 @@
 
 - 11/24: 태그 `handoff-w13-3`. 제품 이름이 policypack 에서 policyofficer 로 바뀌었다(아래 '이름 바꾸기').
 - 11/25: 태그 `handoff-w13-4`. scan 과 정책 팩을 걷어 냈다(아래 '걷어 낸 것').
+- 11/25 밤: `replay`(기록 재생) 명령을 뺐다(태그 없음). JSON·스키마·`review` 의 인자는 그대로다. 웹은 replay 를 쓰지
+  않으므로 맞출 것이 없다.
 
 ## 걷어 낸 것 (`handoff-w13-4`, 2026-11-25)
 
 오너 지시로 제품을 review 하나로 줄였다. 되돌릴 자리는 태그 `static-final` 이다. 웹이 맞출 것:
 
-- **명령**: `scan`·`validate`·`test`·`schema`·`doctor`·`hook` 이 없다. 남은 명령은 `profile`·`review`·`replay` 다.
+- **명령**: `scan`·`validate`·`test`·`schema`·`doctor`·`hook` 이 없다. 남은 명령은 `profile`·`review` 다(`replay` 는 같은 날 밤에 뺐다).
   `review` 의 `--no-static` 도 없다(웹 실행기는 넘기지 않았다). `review`·`profile` 의 다른 인자와 기본값은 그대로다.
 - **review JSON**: `checklist[].static`·`checklist[].krcore`·`run.static` 을 내지 않는다. `profile.features[].sources` 에
   `static` 이 나오지 않는다. 그 밖의 키와 값은 그대로이고, 가짜 판정자로 견주면 이 키들 말고는 바이트까지 같다.
   `review_version` 은 2 그대로다(웹이 2 만 받으므로). `schemas/review-2.json` 은 셋을 선택 키로 바꿔 옛 결과도
   통과한다. 웹의 스키마 사본이 셋을 필수로 두었다면 빼야 한다.
 - **review --plan JSON**: `static_error` 가 없다.
-- **진행 화면·기록 재생**: '정적 규칙' 단계가 없다(단계 다섯). plain 기록에도 그 줄이 없다.
+- **진행 화면**: '정적 규칙' 단계가 없다(단계 다섯). plain 기록에도 그 줄이 없다.
 - **저장소의 파일**: `policies/kr-core/`(정책 팩·조문 원문·픽스처), `schemas/policy-pack-0.4.json`·
   `schemas/policy-test-0.1.json`·`schemas/report-1.json`, `.pre-commit-hooks.yaml`, `examples/` 가 없다. 웹의 pack-meta
   내보내기와 의무 지도 내보내기가 `policies/kr-core/pack.yaml` 을 읽었다면 더는 읽을 곳이 없다. 의무 표
@@ -91,10 +93,7 @@
 `-o FILE` 은 JSON 을 그 파일에도 쓰고, `--json` 은 터미널이어도 stdout 에 JSON 을 낸다. 진행은 stderr 에 그린다
 (`--progress auto|tty|plain|none`, 기본 auto): stderr 가 터미널이고 CI 가 아니고 TERM 이 dumb 가 아니면 제자리에서 다시
 그리고(tty), 그 밖에는 사건마다 `[mm:ss] …` 한 줄이고 제어 문자가 없다(plain). `NO_COLOR` 는 색만 끈다. Ctrl+C 는 멈춘
-곳 한 줄을 남기고 130 으로 끝난다. `policyofficer replay <결과.json> [--speed N]`(기본 4배)은 저장된 결과의 질문 기록으로
-같은 진행 화면을 다시 그린다(모델·네트워크 호출 0회). 기록 재생은 지금 표의 글로 다시 그린다: 제재(`sanction`)는 지금의
-`profile/sanctions.jsonl` 값으로 덮어쓰고 조문 표기는 지금 의무 표의 `article` 을 먼저 쓴다(표에 없는 의무만 파일의 값.
-판정과 인용은 파일 그대로, 11/25). 화면에만 쓰이는 일이라 JSON 은 바뀌지 않는다. 터미널 요약의 첫 줄은 확인할 것의 수와
+곳 한 줄을 남기고 130 으로 끝난다. 터미널 요약의 첫 줄은 확인할 것의 수와
 그 가운데 징역·과징금의 수를 적고, 각주 바로 위의 '도구 대조' 한 줄은 `run.citations`·`citations_rejected`·`searches`·
 `searches_rejected` 와 거절 까닭(인용·검색의 `why`)을 많은 순으로 둘까지 적는다(11/25).
 
@@ -111,8 +110,8 @@
 `highlights`(11/25): 먼저 볼 것 세 건까지. 건마다 `{"duty", "file", "line", "text"}`(의무 id 와 보일 인용 하나)이다. 후보는
 '코드에서 본 것'이고 품목 묶음이 아니고 모델이 댄 인용(`why` 가 profile 이 아닌 것)이 관문을 통과한 항목이다. 반박을 견딘
 것(`verification.result` upheld) → 제재 등급 → 정액 상한 → 체크리스트 순서로 늘어놓고, 기능마다 하나씩 먼저 고른 뒤 모자라면
-남은 후보로 채운다. 후보가 없으면 빈 목록이다. 터미널 요약은 같은 함수(review.highlights)로 각주 위에 '먼저 볼 N건'을 보이고,
-`replay` 는 이 키가 없는 옛 결과에도 붙인다. 예(jobtalk):
+남은 후보로 채운다. 후보가 없으면 빈 목록이다. 터미널 요약은 같은 함수(review.highlights)로 각주 위에 '먼저 볼 N건'을 보인다.
+예(jobtalk):
 `{"duty": "pipa-28-8-1", "file": "backend/src/controllers/chatController.ts", "line": 135, "text": "const response = await openai.responses.create({"}`.
 
 `sanction`(11/24): 의무별 제재 표(`src/policyofficer/profile/sanctions.jsonl`, AI 검토가 묻는 의무 220개와 1:1)의 레코드에서
@@ -122,7 +121,7 @@
 order)·`condition`·`penalty`·`law`·`clause`·`url`·`quote`(법령 원문), `note`·`as_of`. 위반 판정이 아니다. 터미널 요약은
 갈래 안에서 등급 순(같으면 `max_won` 큰 순)으로 늘어놓고 징역·과징금 앞에 `!!` 를 붙이며, 아래에 "법에 적힌 최대
 제재입니다. 위반 판정이 아니며, 실제 부과는 위반 사실과 규모에 따라 다릅니다."를 한 번 적는다. 표는 불러올 때 1:1, 등급,
-빈 인용을 검사한다. `replay` 는 표보다 앞선 결과에도 의무 id 로 지금 표의 제재를 붙여 보인다.
+빈 인용을 검사한다.
 
 상태(갈래 순):
 

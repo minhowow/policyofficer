@@ -29,7 +29,7 @@ MIT License (see LICENSE)
 
 3. 외부로 나가는 것
 ────────────────────────────────────────────────────────────────────────────
-`policyofficer profile` 과 `policyofficer replay` 는 아무것도 외부로 보내지 않는다.
+`policyofficer profile` 과 `policyofficer review --plan` 은 아무것도 외부로 보내지 않는다.
 
 `policyofficer review` 는 모델(Anthropic API, 또는 ANTHROPIC_BASE_URL 이 가리키는 곳)에게 **모델이 도구로 읽은
 파일의 코드와 검색 결과의 줄**을 보낸다. 보내기 전에 키·토큰·개인키·주민등록번호·카드 번호 같은 비밀값을 가리고,

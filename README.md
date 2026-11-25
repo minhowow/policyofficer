@@ -15,7 +15,6 @@
 ```bash
 uv tool install git+https://github.com/minhowow/policyofficer
 cd <프로젝트 폴더> && policyofficer   # 이 폴더를 검토한다. 터미널이면 요약, 파이프면 JSON. 기본 상한 $2 · 6분
-policyofficer replay <결과.json>     # 저장한 결과를 다시 그린다(모델 호출 없음)
 ```
 
 **어떻게 동작하나** — 기능 파악 → 의무 고르기 → 의무별 조사 → 반박 → 직접 대조 → 체크리스트
@@ -63,7 +62,6 @@ policyofficer <폴더>                       # 체크리스트. 터미널이면 
 policyofficer <폴더> --plan                # 모델 호출 없이 물을 의무 수와 질문 수만 센다
 policyofficer <폴더> --no-rebut --max-usd 1
 policyofficer review <폴더>                # 같은 검토를 웹 실행기의 기본값으로(--batch duty --rebut-scope all --max-usd 5)
-policyofficer replay <결과.json> --speed 4 # 저장한 결과를 다시 그린다(모델·네트워크 호출 없음)
 policyofficer profile <폴더>               # 알아본 기능과 걸릴 수 있는 의무(JSON, 모델 호출 없음)
 ```
 
@@ -83,7 +81,7 @@ policyofficer profile <폴더>               # 알아본 기능과 걸릴 수 �
 
 ## 외부 통신
 
-`profile` 과 `replay` 는 아무것도 밖으로 보내지 않는다. `review` 는 모델(Anthropic API)에게 **모델이 도구로 고른
+`profile` 과 `review --plan` 은 아무것도 밖으로 보내지 않는다. `review` 는 모델(Anthropic API)에게 **모델이 도구로 고른
 파일의 코드와 검색 결과의 줄**을 보낸다. 모델이 쓰는 도구는 읽기 전용 셋(파일 목록·읽기·검색)이고 폴더 밖은 읽지
 못한다. 나가기 전에 이렇게 한다(`src/policyofficer/egress.py`).
 

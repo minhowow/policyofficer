@@ -1,4 +1,4 @@
-"""먼저 볼 것(review.highlights): 고르는 규칙, JSON 의 summary.highlights, 터미널 요약, 옛 결과의 기록 재생.
+"""먼저 볼 것(review.highlights): 고르는 규칙, JSON 의 summary.highlights, 터미널 요약.
 모델 호출 0회."""
 
 from __future__ import annotations
@@ -8,7 +8,6 @@ from pathlib import Path
 
 import jsonschema
 
-from policyofficer import cli
 from policyofficer import review as rv
 from policyofficer.judge.agent import AgentJudge
 from policyofficer.judge.fake import review_transport
@@ -100,21 +99,3 @@ def test_the_json_carries_them_and_matches_the_schema(tmp_path):
     assert not list(jsonschema.Draft202012Validator(SCHEMA).iter_errors(doc))
     old = {**doc, "summary": {k: v for k, v in doc["summary"].items() if k != "highlights"}}
     assert not list(jsonschema.Draft202012Validator(SCHEMA).iter_errors(old))  # 옛 결과도 통과한다
-
-
-def test_replay_adds_them_to_an_old_result(tmp_path, monkeypatch, capsys):
-    items = [_item(1, "a", "과징금"), _item(2, "b", "과태료")]
-    for c in items:
-        c["duty"] = {"d1": "pipa-29-1", "d2": "pipa-15-2"}[c["duty"]]
-    doc = {
-        "review_version": 2,
-        "summary": {"counts": {}, "labels": {}, "top": []},
-        "profile": {"features": []},
-        "run": {"seconds": 1, "usd_estimate": 0, "questions": []},
-        "checklist": items,
-    }
-    (tmp_path / "old.json").write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
-    monkeypatch.delenv("CI", raising=False)
-    assert cli.main(["replay", str(tmp_path / "old.json"), "--speed", "1000", "--progress", "none"]) == 0
-    out = capsys.readouterr().out
-    assert "먼저 볼 2건" in out and out.index("먼저 볼 2건") < out.index("src/f2.ts:2", out.index("먼저 볼"))

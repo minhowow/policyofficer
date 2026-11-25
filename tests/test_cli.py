@@ -68,7 +68,9 @@ def test_review_keeps_its_defaults(tmp_path, capsys, fake):
 def test_a_command_name_is_a_command_and_a_folder_needs_a_path(tmp_path, monkeypatch, capsys, fake):
     monkeypatch.chdir(tmp_path)
     code, _, err = _run(capsys, "scan", ".")
-    assert code == 2 and "scan: 명령도 폴더도 아닙니다" in err and "profile · review · replay" in err
+    assert code == 2 and "scan: 명령도 폴더도 아닙니다" in err and "(명령: profile · review)" in err
+    code, _, err = _run(capsys, "replay", "r.json")  # 11/25 에 뺀 명령
+    assert code == 2 and "replay: 명령도 폴더도 아닙니다" in err
     _repo(tmp_path / "scan")
     code, doc, _ = _run(capsys, "./scan", "--progress", "none")
     assert code == 0 and doc["run"]["batch"] == "bundle"
@@ -97,7 +99,7 @@ def test_version_and_help(capsys):
     out = capsys.readouterr().out
     assert e.value.code == 0 and out.startswith("usage: policyofficer [폴더] [옵션]")
     assert out.index("policyofficer [폴더]   폴더를 검토한다") < out.index("profile")
-    assert "저장소" not in out
+    assert "저장소" not in out and "replay" not in out
 
 
 def test_without_a_key_the_error_points_at_plan(tmp_path, monkeypatch, capsys):

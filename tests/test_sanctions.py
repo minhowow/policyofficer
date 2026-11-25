@@ -1,4 +1,4 @@
-"""의무별 제재 표(profile/sanctions.jsonl): 불러올 때의 검사, review 결과의 sanction, 요약의 정렬·표지, 기록 재생."""
+"""의무별 제재 표(profile/sanctions.jsonl): 불러올 때의 검사, review 결과의 sanction, 요약의 정렬·표지."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from pathlib import Path
 import jsonschema
 import pytest
 
-from policyofficer import cli, profile
+from policyofficer import profile
 from policyofficer import review as rv
 from policyofficer.judge.agent import AgentJudge
 from policyofficer.judge.fake import review_transport
@@ -134,18 +134,3 @@ def test_the_summary_puts_heavier_sanctions_first_and_marks_prison_and_fines():
     assert re.search(r"^      시정명령 불이행 시 과태료 3천만원", narrow, re.M)  # 좁으면 다음 줄로 내린다
     assert re.search(r"제7조 · .+  시정명령 불이행 시", wide) and "어기면" not in narrow + wide
     assert SANCTION_NOTE.replace(" ", "") in render(doc, None, False, 80).replace("\n", "").replace(" ", "")
-
-
-def test_replay_shows_sanctions_for_a_result_made_before_the_table(tmp_path, monkeypatch, capsys):
-    inv, chk = AgentJudge("claude-haiku-5-5", review_transport()), AgentJudge("claude-sonnet-5-5", review_transport())
-    doc = rv.review(_repo(tmp_path), inv, chk, rv.Limits(concurrency=4))
-    for c in doc["checklist"]:
-        c.pop("sanction")
-    (tmp_path / "old.json").write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
-    monkeypatch.delenv("CI", raising=False)
-    assert cli.main(["replay", str(tmp_path / "old.json"), "--speed", "1000", "--progress", "none"]) == 0
-    out = capsys.readouterr().out
-    listed = [c for c in doc["checklist"] if c["status"] in ("seen-in-code", "check-outside", "check-applicability")]
-    labels = [profile.load_sanctions()[c["duty"]]["label"] for c in listed if c.get("group") != "goods"]
-    assert labels and all(label in out for label in labels) and "어기면" not in out
-    assert SANCTION_NOTE in out

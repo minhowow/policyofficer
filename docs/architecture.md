@@ -30,15 +30,15 @@
 
 모델과의 대화는 judge/agent.py 가 한다. 모델이 쓰는 도구는 읽기 전용 셋(목록·읽기·검색)이고 폴더 밖은 읽지 못한다.
 나가는 글은 egress.py 가 비밀값을 가리고, 비밀 파일은 읽지 않는다. 진행은 review/events.py 의 사건으로 내고
-report/progress.py 가 그린다(tty·plain·none). `replay` 는 저장한 결과에서 같은 사건을 다시 만든다(review/replay.py).
+report/progress.py 가 그린다(tty·plain·none).
 
 ## 모듈
 
 | 모듈 | 하는 일 |
 |---|---|
-| `cli.py` | `profile`·`review`·`replay`, 결과를 둘 곳, 터미널 요약 |
+| `cli.py` | `profile`·`review`, 결과를 둘 곳, 터미널 요약 |
 | `profile/` | 기능 신호 표(`features.yaml`), 의무 표(`duties.jsonl`), 제재 표(`sanctions.jsonl`), 폴더의 기능과 걸릴 수 있는 의무 |
-| `review/` | 단계(`__init__.py`), 질문 글과 상태 이름(`prompts.py`), 진행 사건(`events.py`), 기록 재생(`replay.py`) |
+| `review/` | 단계(`__init__.py`), 질문 글과 상태 이름(`prompts.py`), 진행 사건(`events.py`) |
 | `judge/` | 모델과의 대화와 도구(`agent.py`), 표준 라이브러리 HTTP 전송(`http.py`), 시험용 가짜 전송(`fake.py`) |
 | `evidence.py` | 인용 관문 |
 | `egress.py` | 외부로 보내기 전 비밀값 가리기, 비밀 파일 판별 |

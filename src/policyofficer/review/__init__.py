@@ -1038,7 +1038,7 @@ def _base(d: dict) -> dict:
 
 def feature_counts(features: list[dict]) -> dict[str, int]:
     """기능 파악이 한 일(진행 화면): 남은 기능 수, 신호로 잡힌 수, AI 가 뺀 수·더한 수.
-    기능 목록(select 의 첫 값, 결과의 profile.features)에서 센다. 기록 재생도 같은 것을 쓴다."""
+    기능 목록(select 의 첫 값, 결과의 profile.features)에서 센다."""
     src = [set(f.get("sources", [])) for f in features]
     return {
         "features": sum(1 for f in features if "removed" not in f),
@@ -1096,28 +1096,6 @@ def highlights(checklist: list[dict]) -> list[dict]:
         cite = _model_cite(c)
         out.append({"duty": c["duty"], "file": cite["file"], "line": cite.get("line"), "text": cite.get("text", "")})
     return out
-
-
-def with_highlights(doc: dict) -> dict:
-    """기록 재생: 먼저 볼 것이 없는 옛 결과에 같은 함수로 붙인다(제재를 붙이는 것과 같은 방식)."""
-    summary = doc.setdefault("summary", {})
-    if "highlights" not in summary:
-        summary["highlights"] = highlights(doc.get("checklist") or [])
-    return doc
-
-
-def with_tables(item: dict, duties: dict[str, dict] | None = None) -> dict:
-    """기록 재생: 화면에 쓰는 글(제재, 조문 표기)을 지금의 표 값으로 덮어쓴다. 결과 파일에는 그때의 글이 남아 있어
-    표를 고친 뒤(11/24: '시정명령을 어기면' → '시정명령 불이행 시', '시행령 시행령')에도 옛 글이 나왔다. 표에 없는
-    의무는 파일 값 그대로다. 판정과 인용은 건드리지 않는다. `duties` 는 의무 id → 의무 표의 줄."""
-    did = item.get("duty", "")
-    s = load_sanctions().get(did)
-    if s is not None:
-        item["sanction"] = copy.deepcopy(s)
-    row = (duties if duties is not None else {d["id"]: d for d in load_duties()}).get(did)
-    if row and row.get("article"):
-        item["article"] = row["article"]
-    return item
 
 
 def _goods_item(d: dict, g: dict) -> dict:
