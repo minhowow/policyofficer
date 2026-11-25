@@ -30,12 +30,21 @@ QUICK = {"batch": "bundle", "rebut_scope": "found", "max_usd": 2.0}
 """한 줄 명령(`policyofficer [폴더]`)에서만 다른 기본값. 11/24 jobtalk 실제 실행(haiku 조사 + sonnet 반박, 묶음·found)이
 155초, $0.47 이었다. `policyofficer review` 의 기본값은 그대로다(웹 실행기가 쓴다)."""
 
+MODEL = "anthropic:claude-haiku-5-5"
+CHECKER = "anthropic:claude-sonnet-5-5"
+REVIEW_USD = 5.0
+
 USAGE = "policyofficer [폴더] [옵션]\n       policyofficer <명령> ..."
-DESCRIPTION = """폴더의 코드를 AI 가 읽어, 걸릴 수 있는 국내 법 의무마다 근거(파일:줄)와 법에 적힌 제재를 낸다.
+DESCRIPTION = f"""폴더의 코드를 AI 가 읽어, 걸릴 수 있는 국내 법 의무마다 근거(파일:줄)와 법에 적힌 제재를 낸다.
 
   policyofficer [폴더]   폴더를 검토한다(기본: 지금 폴더). 터미널이면 요약, 파이프면 JSON.
                          review 의 옵션을 받고 기본값만 다르다: --batch bundle · --rebut-scope found · --max-usd 2
-                         옵션 보기: policyofficer . -h"""
+
+자주 쓰는 옵션:
+  --model MODEL          조사 모델(기본 {MODEL})
+  --checker MODEL        반박 모델(기본 {CHECKER})
+  --max-usd USD          어림 금액 상한, 달러(기본 {QUICK["max_usd"]:g} · review 는 {REVIEW_USD:g})
+  옵션 모두 보기: policyofficer . -h"""
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -72,9 +81,9 @@ def _review_args(p: argparse.ArgumentParser, quick: bool) -> None:
         p.add_argument("path", help="검토할 폴더")
     batch = QUICK["batch"] if quick else "duty"
     scope = QUICK["rebut_scope"] if quick else "all"
-    usd = QUICK["max_usd"] if quick else 5.0
-    p.add_argument("--model", default="anthropic:claude-haiku-5-5", help="기능 파악·의무별 조사 모델")
-    p.add_argument("--checker", default="anthropic:claude-sonnet-5-5", help="반박 모델(다른 모델을 쓴다)")
+    usd = QUICK["max_usd"] if quick else REVIEW_USD
+    p.add_argument("--model", default=MODEL, metavar="MODEL", help="기능 파악·의무별 조사 모델")
+    p.add_argument("--checker", default=CHECKER, metavar="MODEL", help="반박 모델(다른 모델을 쓴다)")
     p.add_argument(
         "--no-rebut", action="store_true", help="반박을 묻지 않는다(결과의 run.rebut 이 false, 비용이 약 절반)"
     )
@@ -92,7 +101,9 @@ def _review_args(p: argparse.ArgumentParser, quick: bool) -> None:
         help=f"질문 하나에 넣는 의무(기본 {batch}). duty: 하나, feature: 기능 하나(8개까지), bundle: 표의 묶음(같은 "
         "기능·같은 코드 범위를 보는 의무 4개까지). 답과 관문은 어느 쪽이든 의무마다다",
     )
-    p.add_argument("--max-usd", type=float, default=usd, help=f"한 번의 어림 금액 상한(공식 단가, 기본 {usd:g})")
+    p.add_argument(
+        "--max-usd", type=float, default=usd, metavar="USD", help=f"한 번의 어림 금액 상한(공식 단가, 기본 {usd:g})"
+    )
     p.add_argument("--time-limit", type=float, default=360.0, help="한 번의 시간 상한(초, 기본 360)")
     p.add_argument("--concurrency", type=int, default=6, help="동시에 묻는 질문 수(429 를 받으면 줄인다, 기본 6)")
     p.add_argument("--plan", action="store_true", help="모델을 부르지 않고 물을 의무와 질문 수만 낸다")

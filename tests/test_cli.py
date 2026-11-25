@@ -100,6 +100,13 @@ def test_version_and_help(capsys):
     assert e.value.code == 0 and out.startswith("usage: policyofficer [폴더] [옵션]")
     assert out.index("policyofficer [폴더]   폴더를 검토한다") < out.index("profile")
     assert "저장소" not in out and "replay" not in out
+    # 자주 쓰는 옵션 셋은 맨 위 설명에 보인다(기본값은 인자의 기본값과 같다)
+    head = out[: out.index("options:")]
+    quick, review = cli.quick_parser().parse_args([]), cli.build_parser().parse_args(["review", "."])
+    assert f"--model MODEL          조사 모델(기본 {quick.model})" in head
+    assert f"--checker MODEL        반박 모델(기본 {quick.checker})" in head
+    assert f"(기본 {quick.max_usd:g} · review 는 {review.max_usd:g})" in head
+    assert "옵션 모두 보기: policyofficer . -h" in head
 
 
 def test_without_a_key_the_error_points_at_plan(tmp_path, monkeypatch, capsys):
