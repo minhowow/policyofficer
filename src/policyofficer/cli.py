@@ -44,6 +44,7 @@ DESCRIPTION = f"""폴더의 코드를 AI 가 읽어, 걸릴 수 있는 국내 �
   --model MODEL          조사 모델(기본 {MODEL})
   --checker MODEL        반박 모델(기본 {CHECKER})
   --max-usd USD          금액 상한(달러, 기본 {QUICK["max_usd"]:g} · review 는 {REVIEW_USD:g})
+  -o FILE                결과 JSON 을 이 파일로 저장
   옵션 모두 보기: policyofficer . -h"""
 
 
